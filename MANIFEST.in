@@ -1,0 +1,2 @@
+include src/hpc_eff/config.ini.example
+recursive-include src/hpc_eff/utils *.py

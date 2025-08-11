@@ -1,0 +1,9 @@
+[SYSTEM]
+SCORENAME=SPEC2017
+SCORE=3.8
+POWERREADINGCMD=ipmitool dcmi power reading
+DEBUG=yes
+
+[API]
+USER_AGENT=UserAgentString
+API_KEY=XXX
