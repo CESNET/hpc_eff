@@ -1,20 +1,45 @@
 # hpc_eff
-This tool dynamically optimizes energy consumption on HPC systems by
-adjusting the CPU frequency according to the current carbon intensity (CI)
-of electricity production.
 
-Designed to be run periodically (e.g., via cron every 5 minutes under root),
-it applies a hardcoded policy that limits CPU frequency in proportion to
-real-time carbon intensity data obtained from the GreenDIGIT CI database.
-The frequency regulator outputs a standardized score (0–100), representing
-the percentage limit relative to the maximum CPU frequency.
+**Energy Optimization Governor** for HPC systems.  
+Reads power, price, and CO₂ intensity data, then sets the CPU governor based on a calculated rating.
+
+All the functionality and code logic located in `src/hpc_eff` stem from https://gitlab.cesnet.cz/dexter/hpc_eff.
+
+---
+
+## Overview
+
+`hpc_eff` is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
+It evaluates current energy conditions, prints debug logs if enabled, and sets the CPU frequency governor accordingly.
+
+**Main steps performed:**
+1. Load configuration from `/etc/hpc_eff/config.ini`
+2. Fetch current electricity price
+3. Read current power usage via a configured shell command
+4. Read current CPU frequency
+5. Retrieve available CPU frequencies and governors
+6. Fetch historical energy price averages and classify current price
+7. Fetch last 24h CO₂ values and calculate rating
+8. Apply CPU governor based on rating
+
+---
 
 ## Installation
 
-1. `git clone git@github.com:CESNET/hpc_eff.git`
-
-2. `sudo dnf install ipmitool`
-
-3. `make`
-
-Add your API key to /etc/hpc_eff/config.ini
+1. Clone the repository:
+   ```bash
+   git clone git@github.com:CESNET/hpc_eff.git
+   cd hpc_eff
+   ```
+2. Install the dependencies:
+    ```bash
+    sudo dnf install ipmitool
+    ```
+3. Build and install:
+    ```bash
+    make
+   ```
+4. Configure:
+    ```bash
+    sudo vi /etc/hpc_eff/config.ini
+    ```
