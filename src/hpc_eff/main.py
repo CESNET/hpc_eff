@@ -10,7 +10,6 @@ import os
 
 # Load configuration
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
-print(CONFIG_PATH)
 if not os.path.isfile(CONFIG_PATH):
     # fallback for dev environment or if config missing
     CONFIG_PATH = "config.ini.example"

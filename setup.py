@@ -6,7 +6,7 @@ setup(
     description="Energy Optimization Governor",
     long_description_content_type="text/markdown",
     author="CESNET",
-    license="GPL-3.0",
+    license="BSD-3-Clause",
     python_requires=">=3.9",
     install_requires=[
         "numpy==2.0.2",
@@ -18,7 +18,7 @@ setup(
     keywords=["governor", "cpu", "frequency", "carbon intensity"],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+        "License :: OSI Approved :: BSD 3-Clause License",
     ],
     entry_points={
         "console_scripts": [
@@ -26,6 +26,6 @@ setup(
         ],
     },
     project_urls={
-        "Repository": "https://gitlab.cesnet.cz/dexter/hpc_eff"
+        "Repository": "https://github.com/CESNET/hpc_eff"
     },
 )
