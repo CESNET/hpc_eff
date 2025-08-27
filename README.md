@@ -33,7 +33,7 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
    ```
 2. Install the dependencies:
     ```bash
-    sudo dnf install ipmitool
+    sudo dnf install ipmitool kernel-tools
     ```
 3. Build and install:
     ```bash

@@ -1,6 +1,6 @@
 import subprocess
 
-def set_cpu_governor(number):
+def set_cpu_governor(number, dry_run=True):
     """
     This function sets the CPU governor based on the input number. 
     The function takes an integer input and adjusts the CPU frequency governor
@@ -15,6 +15,15 @@ def set_cpu_governor(number):
     """
 
     try:
+        result = subprocess.run(
+            ["cpupower", "frequency-info"],
+            capture_output=True,
+            text=True
+        )
+        output = result.stdout
+        if ("available cpufreq governors: Not Available" in output):
+            print("[WARN] CPU frequency scaling not supported on this system. Skipping governor change.")
+            return
         # Check the range of the input number and set the appropriate governor
         if 1 <= number <= 3:
             governor = 'performance'
@@ -26,8 +35,14 @@ def set_cpu_governor(number):
             raise ValueError("Number must be between 1 and 10.")
 
         # Create the cpufreq-set command for all CPU cores
-        command = f"cpufreq-set -g {governor}"
-        print(f"Command to be executed: {command}")
+        # Prefer cpupower if available
+        command = ["cpupower", "frequency-set", "-g", governor]
+
+        if dry_run:
+            print(f"[DRY-RUN] Command to be executed: {' '.join(command)}")
+        else:
+            subprocess.run(command, check=True)
+            print(f"Governor successfully set to '{governor}'")
 
     except ValueError as e:
         print(f"Error: {e}")

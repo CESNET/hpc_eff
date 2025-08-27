@@ -108,7 +108,7 @@ def main():
 
 
     # Set CPU Governor based on rating
-    set_cpu_governor(rating)
+    set_cpu_governor(rating, dry_run=False)
 
 if __name__ == "__main__":
     main()
