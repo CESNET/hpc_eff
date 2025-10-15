@@ -5,7 +5,7 @@ from .utils.energy_price import get_current_energy_price, get_averages_year, cla
 from .utils.frequency_reader import get_cpu_frequency
 from .utils.get_available_attrs import get_available_frequencies, get_available_governors
 from .utils.co2_value import co2_value
-from .utils.set_cpu import set_cpu_governor
+from .utils.set_cpu import set_cpu_governor, set_cpu_freq
 import os
 
 # Load configuration
@@ -108,7 +108,8 @@ def main():
 
 
     # Set CPU Governor based on rating
-    set_cpu_governor(rating, dry_run=False)
+    set_cpu_governor(rating, available_govers, dry_run=True)
+    set_cpu_freq(rating, available_freqs, available_govers)
 
 if __name__ == "__main__":
     main()

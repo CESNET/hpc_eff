@@ -33,7 +33,7 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
    ```
 2. Install the dependencies:
     ```bash
-    sudo dnf install ipmitool kernel-tools
+    sudo dnf install ipmitool cpufrequtils make kernel-tools rpm-build rpmdevtools -y
     ```
 3. Build and install:
     ```bash

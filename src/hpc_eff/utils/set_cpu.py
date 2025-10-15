@@ -1,48 +1,105 @@
 import subprocess
 
-def set_cpu_governor(number, dry_run=True):
+def set_cpu_governor(number, governors, dry_run=True):
     """
-    This function sets the CPU governor based on the input number. 
-    The function takes an integer input and adjusts the CPU frequency governor
-    for all cores accordingly:
+    Sets the CPU governor based on the input number and available governors.
 
-    - If the input number is between 1 and 3 (inclusive), it sets the governor to 'performance'.
-    - If the input number is between 4 and 7 (inclusive), it sets the governor to 'ondemand'.
-    - If the input number is between 8 and 10 (inclusive), it sets the governor to 'powersave'.
+    Parameters:
+    - number (int): Range 1–10, determines priority of governor.
+    - governors (list[str]): List of available governors (e.g. ["powersave", "performance"]).
 
-    The function handles any potential errors using try-except blocks and 
-    prints the corresponding command to the console without executing it.
+    Rules:
+    - If "performance" is available and number is in 1–3, choose "performance".
+    - If "ondemand" is available and number is in 4–7, choose "ondemand".
+    - If "powersave" is available and number is in 8–10, choose "powersave".
+    - If chosen governor is not available, fall back to the first valid option
+      from the order ["performance", "ondemand", "powersave"] that exists in `governors`.
+
+    The function prints the command instead of executing it.
     """
 
     try:
-        result = subprocess.run(
-            ["cpupower", "frequency-info"],
-            capture_output=True,
-            text=True
-        )
-        output = result.stdout
-        if ("available cpufreq governors: Not Available" in output):
-            print("[WARN] CPU frequency scaling not supported on this system. Skipping governor change.")
-            return
-        # Check the range of the input number and set the appropriate governor
-        if 1 <= number <= 3:
-            governor = 'performance'
-        elif 4 <= number <= 7:
-            governor = 'ondemand'
-        elif 8 <= number <= 10:
-            governor = 'powersave'
-        else:
-            raise ValueError("Number must be between 1 and 10.")
+        # Map ranges to governors
+        ranges = {
+            "performance": range(1, 4),
+            "ondemand": range(4, 8),
+            "powersave": range(8, 11),
+        }
 
-        # Create the cpufreq-set command for all CPU cores
-        # Prefer cpupower if available
-        command = ["cpupower", "frequency-set", "-g", governor]
+        # Determine preferred governor
+        selected = None
+        for gov, valid_range in ranges.items():
+            if number in valid_range and gov in governors:
+                selected = gov
+                break
 
+        # If preferred governor not available, fallback
+        if not selected:
+            for fallback in ["performance", "ondemand", "powersave"]:
+                if fallback in governors:
+                    selected = fallback
+                    break
+
+        if not selected:
+            raise ValueError("No valid governors available in the provided list.")
+
+        # Print command
+        command = ["cpupower", "frequency-set", "-g", selected]
         if dry_run:
             print(f"[DRY-RUN] Command to be executed: {' '.join(command)}")
         else:
             subprocess.run(command, check=True)
             print(f"Governor successfully set to '{governor}'")
+
+    except ValueError as e:
+        print(f"Error: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+def set_cpu_freq(number, freqs, governors):
+    """
+    Selects CPU frequency based on input number (1-10), available frequencies,
+    and available governors.
+
+    Parameters:
+    - number (int): Value from 1 to 10.
+    - freqs (list[int]): List of available frequencies in MHz
+                         (e.g. [800, 1200, 1600, 2400]).
+    - governors (list[str]): List of available governors.
+
+    Rules:
+    - 1 (cheapest) maps to the highest available frequency.
+    - 10 maps to the lowest available frequency.
+    - Values in between are scaled dynamically.
+    - If "userspace" governor is available → use cpufreq-set.
+    - Otherwise → write to scaling_max_freq for all CPUs (requires root).
+
+    Prints the command(s) instead of executing them.
+    """
+    try:
+        if not freqs:
+            raise ValueError("No available frequencies provided.")
+
+        if not (1 <= number <= 10):
+            raise ValueError("Number must be between 1 and 10.")
+
+        # Sort available frequencies
+        freqs_sorted = sorted(freqs, reverse=True)
+        print("Available frequencies: ", freqs_sorted)
+        # Map number (1–10) to index in freqs
+        scale = (number - 1) / 9  # 0.0 for 1, 1.0 for 10
+        index = round(scale * (len(freqs_sorted) - 1))
+        selected_freq = freqs_sorted[index]
+
+        if "userspace" in governors:
+            # cpufreq-set expects MHz
+            command = f"cpufreq-set -f {selected_freq}"
+            print(f"Command to be executed: {command}")
+        else:
+            # scaling_max_freq expects kHz
+            freq_khz = selected_freq * 1000
+            command = f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; do echo {freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
+            print(f"Command to be executed: {command}")
 
     except ValueError as e:
         print(f"Error: {e}")
