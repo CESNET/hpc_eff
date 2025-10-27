@@ -1,4 +1,7 @@
 import subprocess
+import socket
+from datetime import datetime
+import sqlite3
 
 def set_cpu_governor(number, governors, dry_run=True):
     """
@@ -100,8 +103,25 @@ def set_cpu_freq(number, freqs, governors):
             freq_khz = selected_freq * 1000
             command = f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; do echo {freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
             print(f"Command to be executed: {command}")
+        log_setting_change(freq_min=selected_freq, freq_max=selected_freq)
 
     except ValueError as e:
         print(f"Error: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+
+def log_setting(conn, freq_min=None, freq_max=None):
+    """
+    Logs the CPU setting change into the SQLite database.
+    """
+    c = conn.cursor()
+    c.execute("""
+                INSERT INTO cpu_settings_log (timestamp, hostname, governor, freq_min, freq_max)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                datetime.utcnow().isoformat(),
+                socket.gethostname(),
+                freq_min,
+                freq_max
+            ))
+    conn.commit()

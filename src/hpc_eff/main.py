@@ -1,3 +1,4 @@
+import os
 import configparser
 import sys
 from .utils.power_reader import get_power_reading
@@ -6,7 +7,6 @@ from .utils.frequency_reader import get_cpu_frequency
 from .utils.get_available_attrs import get_available_frequencies, get_available_governors
 from .utils.co2_value import co2_value
 from .utils.set_cpu import set_cpu_governor, set_cpu_freq
-import os
 
 # Load configuration
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
