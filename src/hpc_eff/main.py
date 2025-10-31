@@ -1,18 +1,22 @@
 import os
 import configparser
 import sys
+from pathlib import Path
+import sqlite3 
+
 from .utils.power_reader import get_power_reading
 from .utils.energy_price import get_current_energy_price, get_averages_year, classify_price, classify_price_by_median
 from .utils.frequency_reader import get_cpu_frequency
 from .utils.get_available_attrs import get_available_frequencies, get_available_governors
 from .utils.co2_value import co2_value
 from .utils.set_cpu import set_cpu_governor, set_cpu_freq
+from .utils.create_log_db import create_log_db
 
 # Load configuration
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
     # fallback for dev environment or if config missing
-    CONFIG_PATH = "config.ini.example"
+    CONFIG_PATH = "src/hpc_eff/config.ini.example"
 
 config = configparser.ConfigParser()
 config.read(CONFIG_PATH)
@@ -20,6 +24,23 @@ config.read(CONFIG_PATH)
 API_HEADERS = {
     'User-Agent': config['API']['USER_AGENT'],
     'X-Api-Key': config['API']['API_KEY']
+}
+
+DB_PATH_STR = config.get("logging", "db_path", fallback="history.db")
+DB_PATH = Path(DB_PATH_STR).resolve()
+
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+if not DB_PATH.exists():
+    print(f"DB not found → creating {DB_PATH}")
+    create_log_db(DB_PATH)
+
+conn = sqlite3.connect(DB_PATH_STR)
+conn.execute("PRAGMA journal_mode=WAL;")
+
+static_context = {
+    "score_name": config.get("SYSTEM", "SCORENAME", fallback="unknown"),
+    "score_value": config.getfloat("SYSTEM", "SCORE", fallback=None),
 }
 
 debug = config.get("SYSTEM", "DEBUG", fallback="no").lower() == "yes"
@@ -31,6 +52,12 @@ def debug_log(message):
 
 def main():
     debug_log("Starting HPC efficiency evaluator...")
+
+    price = power_w = cpu_freq_current = None
+    available_freqs = available_govs = average_prices = historical_values = []
+    current_price = None
+    rating = 5 # neutral
+    current_value = median_value = grade = None
 
     # Print SCORE just read from config
     score_name = config.get("SYSTEM", "SCORENAME")
@@ -47,15 +74,16 @@ def main():
     # Read current power consumption
     cmd = config.get("SYSTEM", "POWERREADINGCMD")
     try:
-        power = get_power_reading(cmd)
-        debug_log(f"Current power usage (Watts): {power['instantaneous']}")
+        power_data = get_power_reading(cmd)
+        power_w = power_data["instantaneous"]
+        debug_log(f"Current power usage (Watts): {power_w}")
     except Exception as e:
         debug_log(f"Error reading power data: {e}")
 
     # Read current CPU frequency
     try:
-        freq = get_cpu_frequency()
-        debug_log(f"Current CPU frequency (MHz): {freq}")
+        cpu_freq_current = get_cpu_frequency()
+        debug_log(f"Current CPU frequency (MHz): {cpu_freq_current}")
     except Exception as e:
         debug_log(f"Error reading CPU frequency: {e}")
 
@@ -68,8 +96,8 @@ def main():
 
 	# Get available CPU governors
     try:
-        available_govers = get_available_governors()
-        debug_log(f"Available CPU governors: {available_govers}")
+        available_govs = get_available_governors()
+        debug_log(f"Available CPU governors: {available_govs}")
     except Exception as e:
         debug_log(f"Error fetching available CPU governors: {e}")
 
@@ -89,6 +117,7 @@ def main():
             sys.exit(1)
     else:
         current_price = price
+        
     # Get historical prices, classify and rate it
     try:
         history = get_averages_year()
@@ -104,12 +133,24 @@ def main():
         debug_log(f"Median value from 24 hours values (g CO2eq/kWh): {median_value}")
         debug_log(f"Current CO2 value grade from 1 (low) to 10 (high): {grade}")
     except Exception as e:
+        historical_values, current_value, median_value, grade = None, None, None, "unknown"
         debug_log(f"Error fetching co2 values and rating: {e}")
 
+    log_context = static_context.copy()
+    log_context.update({
+        "rating": rating,
+        "price": current_price,
+        "co2_current": current_value,
+        "co2_median": median_value,
+        "co2_grade": grade,
+        "power_w": power_w,
+        "cpu_freq_current": cpu_freq_current
+    })
 
     # Set CPU Governor based on rating
-    set_cpu_governor(rating, available_govers, dry_run=True)
-    set_cpu_freq(rating, available_freqs, available_govers)
+    # set_cpu_governor(rating, available_govs, dry_run=True)
+    set_cpu_freq(rating, available_freqs, available_govs, conn, **log_context)
 
 if __name__ == "__main__":
     main()
+    conn.close()

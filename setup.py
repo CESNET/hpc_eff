@@ -9,13 +9,13 @@ setup(
     license="BSD-3-Clause",
     python_requires=">=3.9",
     install_requires=[
-        "numpy==2.0.2",
-        "requests==2.32.4",
+        "numpy",
+        "requests",
     ],
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     include_package_data=True,
-    keywords=["governor", "cpu", "frequency", "carbon intensity"],
+    keywords=["governor", "cpu", "frequency", "carbon emission"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: BSD 3-Clause License",

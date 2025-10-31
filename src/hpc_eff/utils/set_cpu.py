@@ -59,7 +59,7 @@ def set_cpu_governor(number, governors, dry_run=True):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-def set_cpu_freq(number, freqs, governors):
+def set_cpu_freq(number, freqs, governors, conn=None, **context):
     """
     Selects CPU frequency based on input number (1-10), available frequencies,
     and available governors.
@@ -103,25 +103,34 @@ def set_cpu_freq(number, freqs, governors):
             freq_khz = selected_freq * 1000
             command = f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; do echo {freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
             print(f"Command to be executed: {command}")
-        log_setting_change(freq_min=selected_freq, freq_max=selected_freq)
+        if conn:
+            log_setting(conn, freq_min=selected, freq_max=selected, **context)
 
     except ValueError as e:
         print(f"Error: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-def log_setting(conn, freq_min=None, freq_max=None):
-    """
-    Logs the CPU setting change into the SQLite database.
-    """
-    c = conn.cursor()
-    c.execute("""
-                INSERT INTO cpu_settings_log (timestamp, hostname, governor, freq_min, freq_max)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                datetime.utcnow().isoformat(),
-                socket.gethostname(),
-                freq_min,
-                freq_max
-            ))
+def log_setting(conn, **kwargs):
+    """Log full context into SQLite using the new schema."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO cpu_settings_log
+        (timestamp, hostname, score_name, score_value, governor,
+         freq_min, freq_max, rating, price, co2_current, power_w, cpu_freq_current)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datetime.utcnow().isoformat(),
+        socket.gethostname(),
+        kwargs.get('score_name'),
+        kwargs.get('score_value'),
+        kwargs.get('governor'),
+        kwargs.get('freq_min'),
+        kwargs.get('freq_max'),
+        kwargs.get('rating'),
+        kwargs.get('price'),
+        kwargs.get('co2_current'),
+        kwargs.get('power_w'),
+        kwargs.get('cpu_freq_current')
+    ))
     conn.commit()

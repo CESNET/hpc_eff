@@ -7,3 +7,7 @@ DEBUG=yes
 [API]
 USER_AGENT=UserAgentString
 API_KEY=XXX
+
+[logging]
+db_path = /var/lib/hpc_eff/history.db
+log_level = INFO
