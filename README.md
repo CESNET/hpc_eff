@@ -1,7 +1,7 @@
 # hpc_eff
 
 **Energy Optimization Governor** for HPC systems.  
-Reads power, price, and CO₂ intensity data, then sets the CPU governor based on a calculated rating.
+Reads power, price, and CO₂ intensity data, then sets the min and max frequency based on a calculated rating.
 
 All the functionality and code logic located in `src/hpc_eff` stem from https://gitlab.cesnet.cz/dexter/hpc_eff.
 
@@ -10,7 +10,7 @@ All the functionality and code logic located in `src/hpc_eff` stem from https://
 ## Overview
 
 `hpc_eff` is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
-It evaluates current energy conditions, prints debug logs if enabled, and sets the CPU frequency governor accordingly.
+It evaluates current energy conditions, prints debug logs if enabled, and sets the min and max CPU frequencies accordingly.
 
 **Main steps performed:**
 1. Load configuration from `/etc/hpc_eff/config.ini`
@@ -20,7 +20,7 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
 5. Retrieve available CPU frequencies and governors
 6. Fetch historical energy price averages and classify current price
 7. Fetch last 24h CO₂ values and calculate rating
-8. Apply CPU governor based on rating
+8. Apply min and max CPU frequencies based on rating
 
 ---
 
