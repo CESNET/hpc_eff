@@ -32,7 +32,7 @@ DB_PATH = Path(DB_PATH_STR).resolve()
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 if not DB_PATH.exists():
-    print(f"DB not found → creating {DB_PATH}")
+    print(f"DB not found; creating {DB_PATH}")
     create_log_db(DB_PATH)
 
 conn = sqlite3.connect(DB_PATH_STR)

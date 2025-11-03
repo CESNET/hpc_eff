@@ -52,7 +52,7 @@ def set_cpu_governor(number, governors, dry_run=True):
             print(f"[DRY-RUN] Command to be executed: {' '.join(command)}")
         else:
             subprocess.run(command, check=True)
-            print(f"Governor successfully set to '{governor}'")
+            print(f"Governor successfully set to '{selected}'")
 
     except ValueError as e:
         print(f"Error: {e}")
@@ -104,7 +104,7 @@ def set_cpu_freq(number, freqs, governors, conn=None, **context):
             command = f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; do echo {freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
             print(f"Command to be executed: {command}")
         if conn:
-            log_setting(conn, freq_min=selected, freq_max=selected, **context)
+            log_setting(conn, freq_min=0, freq_max=0, **context)
 
     except ValueError as e:
         print(f"Error: {e}")
@@ -113,24 +113,29 @@ def set_cpu_freq(number, freqs, governors, conn=None, **context):
 
 def log_setting(conn, **kwargs):
     """Log full context into SQLite using the new schema."""
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO cpu_settings_log
-        (timestamp, hostname, score_name, score_value, governor,
-         freq_min, freq_max, rating, price, co2_current, power_w, cpu_freq_current)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datetime.utcnow().isoformat(),
-        socket.gethostname(),
-        kwargs.get('score_name'),
-        kwargs.get('score_value'),
-        kwargs.get('governor'),
-        kwargs.get('freq_min'),
-        kwargs.get('freq_max'),
-        kwargs.get('rating'),
-        kwargs.get('price'),
-        kwargs.get('co2_current'),
-        kwargs.get('power_w'),
-        kwargs.get('cpu_freq_current')
-    ))
-    conn.commit()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cpu_settings_log
+            (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
+             co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datetime.utcnow().isoformat(),
+            socket.gethostname(),
+            kwargs.get('freq_min'),
+            kwargs.get('freq_max'),
+            kwargs.get('score_name'),
+            kwargs.get('score_value'),
+            kwargs.get('price'),
+            kwargs.get('co2_current'),
+            kwargs.get('co2_median'),
+            kwargs.get('co2_grade'),
+            kwargs.get('power_w'),
+            kwargs.get('cpu_freq_current'),
+            kwargs.get('rating'),
+        ))
+        conn.commit()
+        print("[DEBUG] Inserted log entry successfully.")
+    except Exception as e:
+        print(f"[ERROR] Failed to insert log entry: {e}")
