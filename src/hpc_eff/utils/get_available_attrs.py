@@ -23,14 +23,14 @@ def get_available_frequencies():
             with open(file) as f:
                 content = f.read().strip()
                 if content:
-                    return sorted(list(set(int(int(khz)//1000) for khz in content.split())))
+                    return sorted(list(set(int(int(khz)//1000) for khz in content.split()))) # converts to MHz from kHz
 
     # Fallback to min/max range from cpupower
     if shutil.which("cpupower"):
         output = run_command("cpupower frequency-info")
         match = re.search(r"hardware limits:\s*([\d\.]+)\s*GHz\s*-\s*([\d\.]+)\s*GHz", output)
         if match:
-            min_freq = float(match.group(1)) * 1000
+            min_freq = float(match.group(1)) * 1000 # converts to MHz from GHz
             max_freq = float(match.group(2)) * 1000
             return [int(min_freq), int(max_freq)]
 

@@ -1,5 +1,6 @@
 NAME = hpc_eff
 VERSION = 0.1
+RELEASE = 1
 RPMDIR = $(HOME)/rpmbuild
 TARBALL = dist/$(NAME)-$(VERSION).tar.gz
 SPECFILE = $(RPMDIR)/SPECS/$(NAME).spec
@@ -26,7 +27,9 @@ sdist:
 	cp $(TARBALL) $(RPMDIR)/SOURCES/
 
 rpm:
-	rpmbuild -ba $(SPECFILE)
+	rpmbuild -ba $(SPECFILE) \
+	    --define "version $(VERSION)" \
+	    --define "release $(RELEASE)"
 
 install:
 	sudo dnf install -y $(RPMFILE)

@@ -74,7 +74,7 @@ def set_cpu_freq(number, freqs, governors, conn=None, **context):
     - 1 (cheapest) maps to the highest available frequency.
     - 10 maps to the lowest available frequency.
     - Values in between are scaled dynamically.
-    - If "userspace" governor is available → use cpufreq-set.
+    - Uses cpupower frequency-set to set frequency.
     - Otherwise → write to scaling_max_freq for all CPUs (requires root).
 
     Prints the command(s) instead of executing them.
@@ -92,17 +92,16 @@ def set_cpu_freq(number, freqs, governors, conn=None, **context):
         # Map number (1–10) to index in freqs
         scale = (number - 1) / 9  # 0.0 for 1, 1.0 for 10
         index = round(scale * (len(freqs_sorted) - 1))
-        selected_freq = freqs_sorted[index]
-
+        selected_freq_mhz = freqs_sorted[index]
+        selected_freq_khz = selected_freq_mhz * 1000  # cpupower expects kHz
         if "userspace" in governors:
-            # cpufreq-set expects MHz
-            command = f"cpufreq-set -f {selected_freq}"
-            print(f"Command to be executed: {command}")
+            command = f"cpupower frequency-set --freq {selected_freq_khz}"
         else:
-            # scaling_max_freq expects kHz
-            freq_khz = selected_freq * 1000
-            command = f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; do echo {freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
-            print(f"Command to be executed: {command}")
+            command = (
+                f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; "
+                f"do echo {selected_freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
+            )
+        print(f"Command to be executed: {command}")
         if conn:
             log_setting(conn, freq_min=0, freq_max=0, **context)
 

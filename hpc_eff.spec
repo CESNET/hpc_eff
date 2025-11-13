@@ -1,6 +1,4 @@
 %define name hpc_eff
-%define version 0.1
-%define release 1
 
 Name:           %{name}
 Version:        %{version}
