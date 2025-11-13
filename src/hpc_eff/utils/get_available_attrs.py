@@ -1,9 +1,8 @@
-# utils/get_available_attrs.py
-
 import os
 import subprocess
 import re
 import glob
+import shutil
 
 def run_command(cmd):
     """
@@ -26,21 +25,29 @@ def get_available_frequencies():
                 if content:
                     return sorted(list(set(int(int(khz)//1000) for khz in content.split())))
 
-    # Fallback to min/max range from cpufreq-info
-    output = run_command("cpufreq-info -c 0")
-    match = re.search(r"hardware limits: (\d+) MHz - (\d+(\.\d+)?) GHz", output)
-    if match:
-        min_freq = int(match.group(1))
-        max_freq = float(match.group(2)) * 1000  # Convert GHz to MHz
-        return [min_freq, int(max_freq)]
+    # Fallback to min/max range from cpupower
+    if shutil.which("cpupower"):
+        output = run_command("cpupower frequency-info")
+        match = re.search(r"hardware limits:\s*([\d\.]+)\s*GHz\s*-\s*([\d\.]+)\s*GHz", output)
+        if match:
+            min_freq = float(match.group(1)) * 1000
+            max_freq = float(match.group(2)) * 1000
+            return [int(min_freq), int(max_freq)]
 
-    # If everything fails, return an empty list
     return []
 
 def get_available_governors():
     """
-    Tries to read available CPU governors from cpufreq-info.
+    Tries to read available CPU governors from cpupower.
     Returns a sorted list.
     """
-    output = run_command("cpufreq-info -g")
-    return sorted(output.split())
+    if shutil.which("cpupower"):
+        output = run_command("cpupower frequency-info --governors")
+        match = re.search(r"available cpufreq governors:\s*(.*)", output)
+        if match:
+            governors = match.group(1).strip()
+            if governors.lower() == "not available":
+                return []
+            return sorted(governors.split())
+
+    return []
