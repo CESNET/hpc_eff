@@ -59,23 +59,20 @@ def set_cpu_governor(number, governors, dry_run=True):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-def set_cpu_freq(number, freqs, governors, conn=None, **context):
+def set_cpu_freq(number, freqs, conn=None, **context):
     """
-    Selects CPU frequency based on input number (1-10), available frequencies,
-    and available governors.
+    Selects CPU frequency based on input number (1-10) and available frequencies.
 
     Parameters:
     - number (int): Value from 1 to 10.
     - freqs (list[int]): List of available frequencies in MHz
                          (e.g. [800, 1200, 1600, 2400]).
-    - governors (list[str]): List of available governors.
 
     Rules:
     - 1 (cheapest) maps to the highest available frequency.
     - 10 maps to the lowest available frequency.
     - Values in between are scaled dynamically.
-    - Uses cpupower frequency-set to set frequency.
-    - Otherwise → write to scaling_max_freq for all CPUs (requires root).
+    - Uses cpupower frequency-set to set max frequency.
 
     Prints the command(s) instead of executing them.
     """
@@ -91,16 +88,11 @@ def set_cpu_freq(number, freqs, governors, conn=None, **context):
         print("Available frequencies: ", freqs_sorted)
         # Map number (1–10) to index in freqs
         scale = (number - 1) / 9  # 0.0 for 1, 1.0 for 10
-        index = round(scale * (len(freqs_sorted) - 1))
+        index = int(round(scale * (len(freqs_sorted) - 1)))
         selected_freq_mhz = freqs_sorted[index]
         selected_freq_khz = selected_freq_mhz * 1000  # cpupower expects kHz
-        if "userspace" in governors:
-            command = f"cpupower frequency-set --freq {selected_freq_khz}"
-        else:
-            command = (
-                f"for cpu in /sys/devices/system/cpu/cpu[0-9]*; "
-                f"do echo {selected_freq_khz} > $cpu/cpufreq/scaling_max_freq; done"
-            )
+        command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
+        subprocess.run(command, check=True)
         print(f"Command to be executed: {command}")
         if conn:
             log_setting(conn, freq_min=0, freq_max=0, **context)

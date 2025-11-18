@@ -147,9 +147,8 @@ def main():
         "cpu_freq_current": cpu_freq_current
     })
 
-    # Set CPU Governor based on rating
-    # set_cpu_governor(rating, available_govs, dry_run=True)
-    set_cpu_freq(rating, available_freqs, available_govs, conn, **log_context)
+    # Set CPU min and max frequencies based on rating
+    set_cpu_freq(rating, available_freqs, conn, **log_context)
 
 if __name__ == "__main__":
     main()

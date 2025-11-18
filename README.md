@@ -39,7 +39,7 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
     ```bash
     make
    ```
-4. Configure:
+4. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
