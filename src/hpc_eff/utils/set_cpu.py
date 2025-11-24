@@ -2,6 +2,27 @@ import subprocess
 import socket
 from datetime import datetime
 import sqlite3
+import configparser
+
+def get_cpu_type():
+    try:
+        cpuinfo = subprocess.check_output(["cat", "/proc/cpuinfo"], text=True).upper()
+        model_line = [l for l in cpuinfo.splitlines() if "MODEL NAME" in l][0]
+    except Exception:
+        return "default"
+
+    model = model_line.split(":", 1)[1].strip() if ":" in model_line else ""
+
+    if "EPYC" in model:
+        return "amd_epyc"
+
+    if "E5-" in model and "V3" in model:
+        return "intel_e5"
+
+    if "GOLD" in model:
+        return "intel_xeon_gold"
+
+    return "default"
 
 def set_cpu_governor(number, governors, dry_run=True):
     """
@@ -59,7 +80,7 @@ def set_cpu_governor(number, governors, dry_run=True):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
-def set_cpu_freq(number, freqs, conn=None, **context):
+def set_cpu_freq(number, conn=None, **context):
     """
     Selects CPU frequency based on input number (1-10) and available frequencies.
 
@@ -77,25 +98,26 @@ def set_cpu_freq(number, freqs, conn=None, **context):
     Prints the command(s) instead of executing them.
     """
     try:
-        if not freqs:
-            raise ValueError("No available frequencies provided.")
-
         if not (1 <= number <= 10):
             raise ValueError("Number must be between 1 and 10.")
 
-        # Sort available frequencies
-        freqs_sorted = sorted(freqs, reverse=True)
-        print("Available frequencies: ", freqs_sorted)
-        # Map number (1–10) to index in freqs
-        scale = (number - 1) / 9  # 0.0 for 1, 1.0 for 10
-        index = int(round(scale * (len(freqs_sorted) - 1)))
-        selected_freq_mhz = freqs_sorted[index]
-        selected_freq_khz = selected_freq_mhz * 1000  # cpupower expects kHz
+        config = configparser.ConfigParser()
+        config.read('/etc/hpc_eff/config.ini')
+
+        cpu_type = get_cpu_type()
+        freq_list = config.get('frequency_tables', cpu_type, fallback=config.get('frequency_tables', 'default')).split(',')
+        freq_list = [int(f.strip()) for f in freq_list]
+
+        scale = (number - 1) / 9.0
+        index = int(round(scale * (len(freq_list) - 1)))
+        selected_freq_mhz = sorted(freq_list, reverse=True)[index]
+        selected_freq_khz = selected_freq_mhz * 1000
+       
         command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
-        subprocess.run(command, check=True)
-        print(f"Command to be executed: {command}")
+        # subprocess.run(command, check=True)
+        print(f"Command to be executed: {' '.join(command)}")
         if conn:
-            log_setting(conn, freq_min=0, freq_max=0, **context)
+            log_setting(conn, freq_min=0, freq_max=selected_freq_khz, **context)
 
     except ValueError as e:
         print(f"Error: {e}")

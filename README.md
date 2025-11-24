@@ -43,3 +43,14 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
+5. To read from the created database:
+    ```bash
+    sudo cp /var/lib/hpc_eff/history.db ~/history.db
+    sqlite3 ~/history.db
+    ```
+    Inspect tables and data:
+    ```
+    .tables
+    .schema cpu_settings_log 
+    SELECT * FROM cpu_settings_log LIMIT 10;
+    ```

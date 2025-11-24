@@ -87,20 +87,6 @@ def main():
     except Exception as e:
         debug_log(f"Error reading CPU frequency: {e}")
 
-	# Get available CPU frequencies
-    try:
-        available_freqs = get_available_frequencies()
-        debug_log(f"Available CPU frequencies (MHz): {available_freqs}")
-    except Exception as e:
-        debug_log(f"Error fetching available CPU frequencies: {e}")
-
-	# Get available CPU governors
-    try:
-        available_govs = get_available_governors()
-        debug_log(f"Available CPU governors: {available_govs}")
-    except Exception as e:
-        debug_log(f"Error fetching available CPU governors: {e}")
-
     # Get year average prices
     try:
         average_prices = get_averages_year()
@@ -148,7 +134,8 @@ def main():
     })
 
     # Set CPU min and max frequencies based on rating
-    set_cpu_freq(rating, available_freqs, conn, **log_context)
+    print(rating)
+    set_cpu_freq(rating, conn, **log_context)
 
 if __name__ == "__main__":
     main()
