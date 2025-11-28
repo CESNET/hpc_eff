@@ -12,10 +12,8 @@ from .utils.co2_value import co2_value
 from .utils.set_cpu import set_cpu_governor, set_cpu_freq
 from .utils.create_log_db import create_log_db
 
-# Load configuration
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
-    # fallback for dev environment or if config missing
     CONFIG_PATH = "src/hpc_eff/config.ini.example"
 
 config = configparser.ConfigParser()
@@ -134,7 +132,7 @@ def main():
     })
 
     # Set CPU min and max frequencies based on rating
-    print(rating)
+    debug_log(f"Current rating: {rating}")
     set_cpu_freq(rating, conn, **log_context)
 
 if __name__ == "__main__":

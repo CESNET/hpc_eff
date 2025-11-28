@@ -9,12 +9,12 @@ USER_AGENT=UserAgentString
 API_KEY=XXX
 
 [logging]
-db_path = /var/lib/hpc_eff/history.db
-log_level = INFO
+db_path=/var/lib/hpc_eff/history.db
+log_level=INFO
 
 [frequency_tables]
 # AMD EPYC
-amd_epyc_rome_milan=2400,2000,1500
+amd_epyc=2400,2000,1500
 
 # Intel Xeon Gold 6130
 intel_xeon_gold=3000,2900,2800,2700,2600,2200

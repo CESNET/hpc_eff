@@ -3,6 +3,17 @@ import socket
 from datetime import datetime
 import sqlite3
 import configparser
+import logging
+
+config = configparser.ConfigParser()
+config.read("/etc/hpc_eff/config.ini")
+logging.basicConfig(
+    level=config.get("logging", "log_level", fallback="INFO"),
+    format="%(asctime)s %(levelname)-8s | %(message)s",
+    force=True
+)
+
+logger = logging.getLogger("hpc_eff")
 
 def get_cpu_type():
     try:
@@ -114,15 +125,15 @@ def set_cpu_freq(number, conn=None, **context):
         selected_freq_khz = selected_freq_mhz * 1000
        
         command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
-        # subprocess.run(command, check=True)
-        print(f"Command to be executed: {' '.join(command)}")
+        subprocess.run(command, check=True)
+        logger.info(f"Command to be executed: {' '.join(command)}")
         if conn:
             log_setting(conn, freq_min=0, freq_max=selected_freq_khz, **context)
 
     except ValueError as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logger.error(f"An unexpected error occurred: {e}")
 
 def log_setting(conn, **kwargs):
     """Log full context into SQLite using the new schema."""
@@ -149,6 +160,7 @@ def log_setting(conn, **kwargs):
             kwargs.get('rating'),
         ))
         conn.commit()
-        print("[DEBUG] Inserted log entry successfully.")
+        logger.info("DB log entry inserted")
     except Exception as e:
-        print(f"[ERROR] Failed to insert log entry: {e}")
+        logger.error(f"DB insert failed: {e}")
+        raise
