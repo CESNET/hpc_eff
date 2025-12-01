@@ -1,8 +1,7 @@
 # hpc_eff
 
 **Energy Optimization Governor** for HPC systems.  
-Reads power, price, and CO₂ intensity data, then sets the min and max frequency based on a calculated rating.
-
+Dynamically adjusts CPU frequencies based on power, electricity price, CO₂ intensity, and temperature.
 All the functionality and code logic located in `src/hpc_eff` stem from https://gitlab.cesnet.cz/dexter/hpc_eff.
 
 ---
@@ -33,17 +32,32 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
    ```
 2. Install the dependencies:
     ```bash
-    sudo dnf install ipmitool cpufrequtils make kernel-tools rpm-build rpmdevtools -y
+    sudo apt update
+    sudo apt install build-essential devscripts debhelper dh-make dh-python python3-all python3-setuptools fakeroot
+    sudo apt install ipmitool cpufrequtils python3-numpy python3-requests
     ```
-3. Build and install:
+3. Build the package:
     ```bash
-    make
-   ```
-4. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
+    dpkg-buildpackage -us -uc
+    ```
+4. Install the package:
+    ```bash
+    sudo dpkg -i ../hpc-eff_0.1-1_*.deb
+    ```
+5. Test executable 
+    ```bash
+    sudo hpc-eff
+    ```
+6. Clean up (optional):
+    ```bash
+    dpkg-buildpackage -tc
+    sudo dpkg -r hpc-eff
+    ```
+7. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
-5. To read from the created database:
+8. To read from the created database:
     ```bash
     sudo cp /var/lib/hpc_eff/history.db ~/history.db
     sqlite3 ~/history.db

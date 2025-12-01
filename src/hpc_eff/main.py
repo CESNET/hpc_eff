@@ -9,12 +9,12 @@ from .utils.energy_price import get_current_energy_price, get_averages_year, cla
 from .utils.frequency_reader import get_cpu_frequency
 from .utils.get_available_attrs import get_available_frequencies, get_available_governors
 from .utils.co2_value import co2_value
-from .utils.set_cpu import set_cpu_governor, set_cpu_freq
+from .utils.set_cpu import set_cpu_freq
 from .utils.create_log_db import create_log_db
 
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
-    CONFIG_PATH = "src/hpc_eff/config.ini.example"
+    CONFIG_PATH = "src/hpc_eff/config.ini"
 
 config = configparser.ConfigParser()
 config.read(CONFIG_PATH)
@@ -51,7 +51,7 @@ def debug_log(message):
 def main():
     debug_log("Starting HPC efficiency evaluator...")
 
-    price = power_w = cpu_freq_current = None
+    price = power_w = cpu_freq_current = temperature = None
     available_freqs = available_govs = average_prices = historical_values = []
     current_price = None
     rating = 5 # neutral
@@ -128,8 +128,14 @@ def main():
         "co2_median": median_value,
         "co2_grade": grade,
         "power_w": power_w,
-        "cpu_freq_current": cpu_freq_current
+        "cpu_freq_current": cpu_freq_current,
+        "temperature": temperature
     })
+
+    # Check temperature threshold
+    if temperature is not None and temperature > temp_threshold:
+        debug_log(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
+        rating = 10 # Force lowest frequency (highest rating number)
 
     # Set CPU min and max frequencies based on rating
     debug_log(f"Current rating: {rating}")

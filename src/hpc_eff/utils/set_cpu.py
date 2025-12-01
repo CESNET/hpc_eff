@@ -35,62 +35,6 @@ def get_cpu_type():
 
     return "default"
 
-def set_cpu_governor(number, governors, dry_run=True):
-    """
-    Sets the CPU governor based on the input number and available governors.
-
-    Parameters:
-    - number (int): Range 1–10, determines priority of governor.
-    - governors (list[str]): List of available governors (e.g. ["powersave", "performance"]).
-
-    Rules:
-    - If "performance" is available and number is in 1–3, choose "performance".
-    - If "ondemand" is available and number is in 4–7, choose "ondemand".
-    - If "powersave" is available and number is in 8–10, choose "powersave".
-    - If chosen governor is not available, fall back to the first valid option
-      from the order ["performance", "ondemand", "powersave"] that exists in `governors`.
-
-    The function prints the command instead of executing it.
-    """
-
-    try:
-        # Map ranges to governors
-        ranges = {
-            "performance": range(1, 4),
-            "ondemand": range(4, 8),
-            "powersave": range(8, 11),
-        }
-
-        # Determine preferred governor
-        selected = None
-        for gov, valid_range in ranges.items():
-            if number in valid_range and gov in governors:
-                selected = gov
-                break
-
-        # If preferred governor not available, fallback
-        if not selected:
-            for fallback in ["performance", "ondemand", "powersave"]:
-                if fallback in governors:
-                    selected = fallback
-                    break
-
-        if not selected:
-            raise ValueError("No valid governors available in the provided list.")
-
-        # Print command
-        command = ["cpupower", "frequency-set", "-g", selected]
-        if dry_run:
-            print(f"[DRY-RUN] Command to be executed: {' '.join(command)}")
-        else:
-            subprocess.run(command, check=True)
-            print(f"Governor successfully set to '{selected}'")
-
-    except ValueError as e:
-        print(f"Error: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
 def set_cpu_freq(number, conn=None, **context):
     """
     Selects CPU frequency based on input number (1-10) and available frequencies.
@@ -116,6 +60,7 @@ def set_cpu_freq(number, conn=None, **context):
         config.read('/etc/hpc_eff/config.ini')
 
         cpu_type = get_cpu_type()
+        logger.info(f"CPU type: {cpu_type}")
         freq_list = config.get('frequency_tables', cpu_type, fallback=config.get('frequency_tables', 'default')).split(',')
         freq_list = [int(f.strip()) for f in freq_list]
 
@@ -142,8 +87,8 @@ def log_setting(conn, **kwargs):
         cursor.execute("""
             INSERT INTO cpu_settings_log
             (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
-             co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating, temperature)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             datetime.utcnow().isoformat(),
             socket.gethostname(),
@@ -158,6 +103,7 @@ def log_setting(conn, **kwargs):
             kwargs.get('power_w'),
             kwargs.get('cpu_freq_current'),
             kwargs.get('rating'),
+            kwargs.get('temperature'),
         ))
         conn.commit()
         logger.info("DB log entry inserted")

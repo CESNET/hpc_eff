@@ -1,0 +1,13 @@
+Source: hpc-eff
+Section: utils
+Priority: optional
+Maintainer: CESNET <pailozian@cesnet.cz>
+Build-Depends: debhelper (>= 12), dh-python, python3-all, python3-setuptools
+Standards-Version: 4.6.0
+X-Python3-Version: >= 3.9
+
+Package: hpc-eff
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}, python3-numpy, python3-requests, ipmitool, cpufrequtils
+Description: Energy Optimization Governor
+ This tool dynamically optimizes frequency of CPU cores based on the hall temperature.
