@@ -11,6 +11,7 @@ from .utils.get_available_attrs import get_available_frequencies, get_available_
 from .utils.co2_value import co2_value
 from .utils.set_cpu import set_cpu_freq
 from .utils.create_log_db import create_log_db
+from .utils.cpu_thermo import apply_cpu_thermo
 
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
@@ -47,6 +48,9 @@ def debug_log(message):
     """Log message if debugging is enabled."""
     if debug:
         print(f"[DEBUG] {message}")
+
+# temperature threshold used as forced limit fallback
+temp_threshold = config.getint("TEMPERATURE", "THRESHOLD", fallback=80)
 
 def main():
     debug_log("Starting HPC efficiency evaluator...")
@@ -129,8 +133,16 @@ def main():
         "co2_grade": grade,
         "power_w": power_w,
         "cpu_freq_current": cpu_freq_current,
-        "temperature": temperature
     })
+
+    # Apply temperature-based CPU frequency control (cpu_thermo)
+    try:
+        res = apply_cpu_thermo(conn, log_context)
+        temperature = res.get("temperature")
+        if res.get("changed"):
+            debug_log(f"cpu_thermo applied target {res.get('target_freq')}")
+    except Exception as e:
+        debug_log(f"cpu_thermo error: {e}")
 
     # Check temperature threshold
     if temperature is not None and temperature > temp_threshold:
