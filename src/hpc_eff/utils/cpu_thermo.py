@@ -4,22 +4,8 @@ import socket
 import time
 import requests
 from .set_cpu import log_setting, logger
-from .command_runner import run_command
+from .system_utils import run_command, read_temperature
 from .frequency_reader import get_cpu_max_frequency, freq_to_khz, get_cpu_count
-
-
-def read_temperature(sensor_name: str) -> int | None:
-    """Try to read temperature via ipmitool sensor reading. Return integer Celsius or None."""
-    try:
-        out = run_command(f'ipmitool sensor reading "{sensor_name}" 2>/dev/null')
-        if not out:
-            return None
-        m = re.search(r"\d+", out)
-        if not m:
-            return None
-        return int(m.group(0))
-    except Exception:
-        return None
 
 
 def apply_cpu_thermo(conn=None, log_context=None, config=None):
