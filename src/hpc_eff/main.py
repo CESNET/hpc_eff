@@ -133,12 +133,11 @@ def main():
         "co2_grade": grade,
         "power_w": power_w,
         "cpu_freq_current": cpu_freq_current,
-        "temperature": temperature
     })
 
     # Apply temperature-based CPU frequency control (cpu_thermo)
     try:
-        res = apply_cpu_thermo(conn, log_context, config)
+        res = apply_cpu_thermo(conn, log_context)
         temperature = res.get("temperature")
         if res.get("changed"):
             debug_log(f"cpu_thermo applied target {res.get('target_freq')}")

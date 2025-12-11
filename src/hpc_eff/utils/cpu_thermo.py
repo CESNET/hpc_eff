@@ -1,11 +1,33 @@
+import os
 import subprocess
+import glob
+import configparser
 import re
 import socket
 import time
 import requests
 from .set_cpu import log_setting, logger
-from .command_runner import run_command
-from .frequency_reader import get_cpu_max_frequency, freq_to_khz, get_cpu_count
+
+
+def run_command(cmd):
+    result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+    return result.stdout.strip()
+
+
+def freq_to_khz(freq_str: str) -> int:
+    """Convert frequency strings like '3.10GHz' to kHz integer."""
+    f = freq_str.strip().upper().replace("GHZ", "")
+    try:
+        val = float(f)
+        # GHz -> kHz: GHz * 1e6
+        return int(val * 1000000)
+    except Exception:
+        raise ValueError(f"Unable to parse frequency string: {freq_str}")
+
+
+def get_cpu_count() -> int:
+    cpus = glob.glob("/sys/devices/system/cpu/cpu[0-9]*")
+    return len(cpus)
 
 
 def read_temperature(sensor_name: str) -> int | None:
@@ -22,21 +44,14 @@ def read_temperature(sensor_name: str) -> int | None:
         return None
 
 
-def apply_cpu_thermo(conn=None, log_context=None, config=None):
+def apply_cpu_thermo(conn=None, log_context=None):
     """Apply temperature-based CPU max-frequency settings.
-
-    Args:
-        conn: SQLite connection for logging (optional)
-        log_context: Context dict for logging (optional)
-        config: configparser.ConfigParser instance with configuration (required)
 
     Returns: dict with keys: temperature (int|None), changed (bool), target_freq (str|None)
     """
-    if config is None:
-        logger.error("Config required for apply_cpu_thermo")
-        return {"temperature": None, "changed": False, "target_freq": None}
+    cfg = configparser.ConfigParser()
+    cfg.read("/etc/hpc_eff/config.ini")
 
-    cfg = config
     section = "CPU_THERMO"
     if section not in cfg:
         logger.debug("No [CPU_THERMO] section in config, skipping cpu_thermo.")
@@ -61,10 +76,13 @@ def apply_cpu_thermo(conn=None, log_context=None, config=None):
         logger.warning(f"Unable to read temperature from sensor '{sensor}'.")
         return {"temperature": None, "changed": False, "target_freq": None}
 
-    # Read current max freq (kHz) from sysfs
-    current_khz = get_cpu_max_frequency(cpu_id=0)
-    if current_khz is None:
-        logger.warning("Unable to read current max frequency from sysfs")
+    # Read current max freq (kHz)
+    try:
+        current_khz = None
+        with open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", "r") as f:
+            current_khz = int(f.read().strip())
+    except Exception:
+        current_khz = None
 
     # determine current state
     curr_state = "UNKNOWN"
