@@ -2,13 +2,11 @@ import subprocess
 import socket
 from datetime import datetime
 import sqlite3
-import configparser
 import logging
+from .frequency_reader import freq_to_khz
 
-config = configparser.ConfigParser()
-config.read("/etc/hpc_eff/config.ini")
 logging.basicConfig(
-    level=config.get("logging", "log_level", fallback="INFO"),
+    level="INFO",
     format="%(asctime)s %(levelname)-8s | %(message)s",
     force=True
 )
@@ -35,29 +33,29 @@ def get_cpu_type():
 
     return "default"
 
-def set_cpu_freq(number, conn=None, **context):
+def set_cpu_freq(number, conn=None, config=None, **context):
     """
     Selects CPU frequency based on input number (1-10) and available frequencies.
 
     Parameters:
     - number (int): Value from 1 to 10.
-    - freqs (list[int]): List of available frequencies in MHz
-                         (e.g. [800, 1200, 1600, 2400]).
+    - conn: SQLite connection for logging (optional)
+    - config: configparser.ConfigParser instance with configuration (required)
+    - **context: Additional context for logging
 
     Rules:
     - 1 (cheapest) maps to the highest available frequency.
     - 10 maps to the lowest available frequency.
     - Values in between are scaled dynamically.
     - Uses cpupower frequency-set to set max frequency.
-
-    Prints the command(s) instead of executing them.
     """
     try:
         if not (1 <= number <= 10):
             raise ValueError("Number must be between 1 and 10.")
 
-        config = configparser.ConfigParser()
-        config.read('/etc/hpc_eff/config.ini')
+        if config is None:
+            logger.error("Config required for set_cpu_freq")
+            return
 
         cpu_type = get_cpu_type()
         logger.info(f"CPU type: {cpu_type}")
@@ -67,7 +65,7 @@ def set_cpu_freq(number, conn=None, **context):
         scale = (number - 1) / 9.0
         index = int(round(scale * (len(freq_list) - 1)))
         selected_freq_mhz = sorted(freq_list, reverse=True)[index]
-        selected_freq_khz = selected_freq_mhz * 1000
+        selected_freq_khz = freq_to_khz(f"{selected_freq_mhz / 1000}GHz")
        
         command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
         subprocess.run(command, check=True)
