@@ -138,7 +138,7 @@ def main():
 
     # Apply temperature-based CPU frequency control (cpu_thermo)
     try:
-        res = apply_cpu_thermo(conn, log_context)
+        res = apply_cpu_thermo(conn, log_context, config)
         temperature = res.get("temperature")
         if res.get("changed"):
             debug_log(f"cpu_thermo applied target {res.get('target_freq')}")
@@ -152,7 +152,7 @@ def main():
 
     # Set CPU min and max frequencies based on rating
     debug_log(f"Current rating: {rating}")
-    set_cpu_freq(rating, conn, **log_context)
+    set_cpu_freq(rating, conn, config, **log_context)
 
 if __name__ == "__main__":
     main()

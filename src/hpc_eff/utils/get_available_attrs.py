@@ -1,15 +1,9 @@
 import os
-import subprocess
 import re
 import glob
 import shutil
+from .command_runner import run_command
 
-def run_command(cmd):
-    """
-    Runs a shell command and returns its output.
-    """
-    result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    return result.stdout.strip()
 
 def get_available_frequencies():
     """
