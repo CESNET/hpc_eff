@@ -1,7 +1,7 @@
 import re
 import shutil
 import glob
-from .command_runner import run_command
+from .system_utils import run_command
 
 
 def freq_to_khz(freq_str: str) -> int:

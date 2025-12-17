@@ -2,7 +2,7 @@ import os
 import re
 import glob
 import shutil
-from .command_runner import run_command
+from .system_utils import run_command
 
 
 def get_available_frequencies():
