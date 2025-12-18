@@ -9,7 +9,7 @@ from .utils.energy_price import get_current_energy_price, get_averages_year, cla
 from .utils.frequency_reader import get_cpu_frequency
 from .utils.get_available_attrs import get_available_frequencies, get_available_governors
 from .utils.co2_value import co2_value
-from .utils.set_cpu import set_cpu_governor, set_cpu_freq
+from .utils.set_cpu import set_cpu_freq, get_freq_list, calculate_selected_freq
 from .utils.create_log_db import create_log_db
 
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
@@ -120,6 +120,15 @@ def main():
         historical_values, current_value, median_value, grade = None, None, None, "unknown"
         debug_log(f"Error fetching co2 values and rating: {e}")
 
+    # Calculate target frequency upper limit based on rating
+    try:
+        freq_list = get_freq_list(config)
+        freq_max = calculate_selected_freq(rating, freq_list)
+        debug_log(f"Calculated freq_max for rating {rating}: {freq_max} kHz")
+    except Exception as e:
+        freq_max = None
+        debug_log(f"Error calculating freq_max: {e}")
+
     log_context = static_context.copy()
     log_context.update({
         "rating": rating,
@@ -128,7 +137,8 @@ def main():
         "co2_median": median_value,
         "co2_grade": grade,
         "power_w": power_w,
-        "cpu_freq_current": cpu_freq_current
+        "cpu_freq_current": cpu_freq_current,
+        "freq_max": freq_max
     })
 
     # Set CPU min and max frequencies based on rating
