@@ -12,5 +12,7 @@ CREATE TABLE IF NOT EXISTS cpu_settings_log (
     co2_grade TEXT,
     power_w REAL,
     cpu_freq_current INTEGER,
-    rating INTEGER
+    rating INTEGER,
+    rating_price INTEGER,
+    rating_co2 INTEGER
 );

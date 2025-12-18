@@ -106,8 +106,9 @@ def log_setting(conn, **kwargs):
         cursor.execute("""
             INSERT INTO cpu_settings_log
             (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
-             co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating,
+             rating_price, rating_co2)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             datetime.utcnow().isoformat(),
             socket.gethostname(),
@@ -122,6 +123,8 @@ def log_setting(conn, **kwargs):
             kwargs.get('power_w'),
             kwargs.get('cpu_freq_current'),
             kwargs.get('rating'),
+            kwargs.get('rating_price'),
+            kwargs.get('rating_co2'),
         ))
         conn.commit()
         logger.info("DB log entry inserted")

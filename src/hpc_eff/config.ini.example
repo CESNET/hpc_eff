@@ -12,6 +12,11 @@ API_KEY=XXX
 db_path=/var/lib/hpc_eff/history.db
 log_level=INFO
 
+[aggregation]
+weight_price=0.4
+weight_co2=0.6
+# w(price) < w(co2): means sustainability matters more.
+
 [frequency_tables]
 # AMD EPYC
 amd_epyc=2400,2000,1500

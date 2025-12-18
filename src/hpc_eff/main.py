@@ -117,21 +117,42 @@ def main():
         debug_log(f"Median value from 24 hours values (g CO2eq/kWh): {median_value}")
         debug_log(f"Current CO2 value grade from 1 (low) to 10 (high): {grade}")
     except Exception as e:
-        historical_values, current_value, median_value, grade = None, None, None, "unknown"
+        historical_values, current_value, median_value, grade = None, None, None, 5 # default neutral
         debug_log(f"Error fetching co2 values and rating: {e}")
+
+    # Calculate weighted average rating as combination of price and CO2
+    try:
+        w_price = config.getfloat("aggregation", "weight_price", fallback=0.4)
+        w_co2 = config.getfloat("aggregation", "weight_co2", fallback=0.6)
+        
+        r_price = float(rating) if rating is not None else 5.0
+        r_co2 = float(grade) if grade is not None and grade != "unknown" else 5.0
+
+        raw_rating = (r_price * w_price + r_co2 * w_co2) / (w_price + w_co2)
+        final_rating = int(round(raw_rating))
+        # Clamp to 1-10
+        final_rating = max(1, min(10, final_rating))
+        
+        debug_log(f"Consolidated Rating: {final_rating} (Price: {r_price}@{w_price}, CO2: {r_co2}@{w_co2})")
+
+    except Exception as e:
+        debug_log(f"Error calculating weighted rating: {e}")
+        final_rating = rating # Fallback to price rating
 
     # Calculate target frequency upper limit based on rating
     try:
         freq_list = get_freq_list(config)
-        freq_max = calculate_selected_freq(rating, freq_list)
-        debug_log(f"Calculated freq_max for rating {rating}: {freq_max} kHz")
+        freq_max = calculate_selected_freq(final_rating, freq_list)
+        debug_log(f"Calculated freq_max for rating {final_rating}: {freq_max} kHz")
     except Exception as e:
         freq_max = None
         debug_log(f"Error calculating freq_max: {e}")
 
     log_context = static_context.copy()
     log_context.update({
-        "rating": rating,
+        "rating": final_rating,
+        "rating_price": rating,
+        "rating_co2": grade,
         "price": current_price,
         "co2_current": current_value,
         "co2_median": median_value,
@@ -142,8 +163,8 @@ def main():
     })
 
     # Set CPU min and max frequencies based on rating
-    debug_log(f"Current rating: {rating}")
-    set_cpu_freq(rating, conn, **log_context)
+    debug_log(f"Current consolidated rating: {final_rating}")
+    set_cpu_freq(final_rating, conn, **log_context)
 
 if __name__ == "__main__":
     main()
