@@ -3,6 +3,8 @@ import configparser
 import sys
 from pathlib import Path
 import sqlite3 
+import json
+import time
 
 from .utils.power_reader import get_power_reading
 from .utils.energy_price import get_current_energy_price, get_averages_year, classify_price, classify_price_by_median
@@ -35,11 +37,47 @@ if not DB_PATH.exists():
 
 conn = sqlite3.connect(DB_PATH_STR)
 conn.execute("PRAGMA journal_mode=WAL;")
-
+power_cmd = config.get("SYSTEM", "POWERREADINGCMD", fallback="")
 static_context = {
     "score_name": config.get("SYSTEM", "SCORENAME", fallback="unknown"),
     "score_value": config.getfloat("SYSTEM", "SCORE", fallback=None),
+    "power_cmd": power_cmd,
+    "plugins": {
+        "power": "ipmitool" if "ipmitool" in power_cmd else "unknown",
+        "price": "energy_price.py",
+        "co2": "co2_value.py"
+    }
 }
+
+STATE_FILE_PATH = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")
+HISTORY_LENGTH = config.getint("logging", "history_length", fallback=10)
+
+def update_state_json(new_entry):
+    """Update the JSON state file with history."""
+    state_path = Path(STATE_FILE_PATH)
+    try:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        data = {"static": static_context, "history": [], "current": {}}
+        if state_path.exists():
+            try:
+                with open(state_path, "r") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        data["current"] = new_entry
+        data["history"].insert(0, new_entry)
+        data["history"] = data["history"][:HISTORY_LENGTH]
+        data["static"] = static_context
+        
+        with open(state_path, "w") as f:
+            json.dump(data, f, indent=4)
+        
+        state_path.chmod(0o644)
+        debug_log(f"Updated state JSON at {STATE_FILE_PATH}")
+    except Exception as e:
+        debug_log(f"Error updating state JSON: {e}")
 
 debug = config.get("SYSTEM", "DEBUG", fallback="no").lower() == "yes"
 
@@ -159,8 +197,11 @@ def main():
         "co2_grade": grade,
         "power_w": power_w,
         "cpu_freq_current": cpu_freq_current,
-        "freq_max": freq_max
+        "freq_max": freq_max,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     })
+
+    update_state_json(log_context)
 
     # Set CPU min and max frequencies based on rating
     debug_log(f"Current consolidated rating: {final_rating}")

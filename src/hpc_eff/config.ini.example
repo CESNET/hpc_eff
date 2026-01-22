@@ -11,6 +11,8 @@ API_KEY=XXX
 [logging]
 db_path=/var/lib/hpc_eff/history.db
 log_level=INFO
+state_json_path=/var/lib/hpc_eff/state.json
+history_length=10
 
 [aggregation]
 weight_price=0.4
