@@ -158,24 +158,32 @@ def main():
         historical_values, current_value, median_value, grade = None, None, None, 5 # default neutral
         debug_log(f"Error fetching co2 values and rating: {e}")
 
-    # Calculate weighted average rating as combination of price and CO2
-    try:
-        w_price = config.getfloat("aggregation", "weight_price", fallback=0.4)
-        w_co2 = config.getfloat("aggregation", "weight_co2", fallback=0.6)
-        
-        r_price = float(rating) if rating is not None else 5.0
-        r_co2 = float(grade) if grade is not None and grade != "unknown" else 5.0
+    # Calculate final rating based on configuration
+    rating_type = config.get("aggregation", "rating_type", fallback="price").lower()
+    
+    if rating_type == "average":
+        # Calculate weighted average rating as combination of price and CO2
+        try:
+            w_price = config.getfloat("aggregation", "weight_price", fallback=0.4)
+            w_co2 = config.getfloat("aggregation", "weight_co2", fallback=0.6)
+            
+            r_price = float(rating) if rating is not None else 5.0
+            r_co2 = float(grade) if grade is not None and grade != "unknown" else 5.0
 
-        raw_rating = (r_price * w_price + r_co2 * w_co2) / (w_price + w_co2)
-        final_rating = int(round(raw_rating))
-        # Clamp to 1-10
-        final_rating = max(1, min(10, final_rating))
-        
-        debug_log(f"Consolidated Rating: {final_rating} (Price: {r_price}@{w_price}, CO2: {r_co2}@{w_co2})")
+            raw_rating = (r_price * w_price + r_co2 * w_co2) / (w_price + w_co2)
+            final_rating = int(round(raw_rating))
+            # Clamp to 1-10
+            final_rating = max(1, min(10, final_rating))
+            
+            debug_log(f"Consolidated Rating (Average): {final_rating} (Price: {r_price}@{w_price}, CO2: {r_co2}@{w_co2})")
 
-    except Exception as e:
-        debug_log(f"Error calculating weighted rating: {e}")
-        final_rating = rating # Fallback to price rating
+        except Exception as e:
+            debug_log(f"Error calculating weighted rating: {e}")
+            final_rating = rating # Fallback to price rating
+    else:
+        # Default to price-based rating
+        final_rating = rating
+        debug_log(f"Consolidated Rating (Price): {final_rating}")
 
     # Calculate target frequency upper limit based on rating
     try:
