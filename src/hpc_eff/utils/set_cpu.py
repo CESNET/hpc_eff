@@ -72,11 +72,13 @@ def set_cpu_freq(number, conn=None, config=None, **context):
         logger.info(f"Command to be executed: {' '.join(command)}")
         if conn:
             log_setting(conn, freq_min=0, freq_max=selected_freq_khz, **context)
+        return selected_freq_mhz
 
     except ValueError as e:
         logger.error(f"Error: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+    return None
 
 def log_setting(conn, **kwargs):
     """Log full context into SQLite using the new schema."""
