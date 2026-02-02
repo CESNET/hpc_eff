@@ -14,11 +14,6 @@ if not os.path.isfile(CONFIG_PATH):
 config = configparser.ConfigParser()
 config.read(CONFIG_PATH)
 
-API_HEADERS = {
-    'User-Agent': config['API']['USER_AGENT'],
-    'X-Api-Key': config['API']['API_KEY']
-}
-
 DB_PATH_STR = config.get("logging", "db_path", fallback="history.db")
 DB_PATH = Path(DB_PATH_STR).resolve()
 
