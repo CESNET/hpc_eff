@@ -4,6 +4,11 @@ Moves logic out of `main.py`: gathers inputs (price, power, freq, CO2),
 computes ratings and log context, and conditionally calls terminal
 actions `apply_cpu_thermo` and `set_cpu_freq` based on config flags.
 """
+
+import json
+import time
+from pathlib import Path
+
 from .energy_price import get_current_energy_price, get_averages_year, classify_price_by_median
 from .power_reader import get_power_reading
 from .frequency_reader import get_cpu_frequency
@@ -11,6 +16,32 @@ from .co2_value import co2_value
 from .cpu_thermo import apply_cpu_thermo
 from .set_cpu import set_cpu_freq
 
+def update_state_json(new_entry, state_file_path, history_length, static_context, debug_log):
+    """Update the JSON state file with history."""
+    state_path = Path(state_file_path)
+    try:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        data = {"static": static_context, "history": [], "current": {}}
+        if state_path.exists():
+            try:
+                with open(state_path, "r") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        data["current"] = new_entry
+        data["history"].insert(0, new_entry)
+        data["history"] = data["history"][:history_length]
+        data["static"] = static_context
+        
+        with open(state_path, "w") as f:
+            json.dump(data, f, indent=4)
+        
+        state_path.chmod(0o644)
+        debug_log(f"Updated state JSON at {state_file_path}")
+    except Exception as e:
+        debug_log(f"Error updating state JSON: {e}")
 
 def run_evaluation(conn, config, static_context: dict, debug_log):
     """Run the full evaluation pipeline and apply actions depending on config.
@@ -142,6 +173,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         try:
             res = apply_cpu_thermo(conn, log_context, config)
             temperature = res.get("temperature")
+            log_context["temperature"] = temperature # update with real reading
             if res.get("changed"):
                 debug_log(f"cpu_thermo applied target {res.get('target_freq')}")
         except Exception as e:
@@ -154,6 +186,15 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     if temperature is not None and temperature > temp_threshold:
         debug_log(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
         rating = 10
+        log_context["rating"] = rating
+
+    # Add timestamp
+    log_context["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    # Update state JSON
+    state_file_path = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")
+    history_length = config.getint("logging", "history_length", fallback=10)
+    update_state_json(log_context, state_file_path, history_length, static_context, debug_log)
 
     # Set CPU min and max frequencies based on rating
     debug_log(f"Current rating: {rating}")

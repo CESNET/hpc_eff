@@ -1,3 +1,12 @@
+hpc-eff (0.2-1) experimental; urgency=medium
+
+  * Integrated JSON logging feature for evaluation state and history.
+  * Refactored core logic into controller.py for better modularity.
+  * Added temperature-based CPU frequency control.
+  * Enhanced static context with power command and active plugins.
+
+ -- CESNET <pailozian@cesnet.cz>  Mon, 02 Feb 2026 15:42:00 +0100
+
 hpc-eff (0.1-1) experimental; urgency=medium
 
   * Initial release.

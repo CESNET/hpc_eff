@@ -31,9 +31,17 @@ if not DB_PATH.exists():
 conn = sqlite3.connect(DB_PATH_STR)
 conn.execute("PRAGMA journal_mode=WAL;")
 
+power_cmd = config.get("SYSTEM", "POWERREADINGCMD", fallback="")
 static_context = {
     "score_name": config.get("SYSTEM", "SCORENAME", fallback="unknown"),
     "score_value": config.getfloat("SYSTEM", "SCORE", fallback=None),
+    "power_cmd": power_cmd,
+    "plugins": {
+        "power": "power_reader.py",
+        "price": "energy_price.py",
+        "co2": "co2_value.py",
+        "temperature": "cpu_thermo.py"
+    }
 }
 
 debug = config.get("SYSTEM", "DEBUG", fallback="no").lower() == "yes"

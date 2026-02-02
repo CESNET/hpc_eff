@@ -19,7 +19,28 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
 5. Retrieve available CPU frequencies and governors
 6. Fetch historical energy price averages and classify current price
 7. Fetch last 24h CO₂ values and calculate rating
-8. Apply min and max CPU frequencies based on rating
+8. Add current evaluation data and history to a JSON state file (for external monitoring)
+9. Apply temperature-based CPU frequency control
+10. Apply min and max CPU frequencies based on rating
+
+---
+
+## Logging & Monitoring
+
+The application maintains two types of logs:
+- **SQLite Database**: Detailed historical logs stored at `/var/lib/hpc_eff/history.db`.
+- **JSON State File**: A consolidated state file at `/var/lib/hpc_eff/state.json` containing:
+    - `static`: System metadata (score, power command, active plugins).
+    - `current`: Latest evaluation results (rating, price, power, temp, etc.).
+    - `history`: A rolling history of previous evaluations.
+
+These can be configured in `/etc/hpc_eff/config.ini`:
+```ini
+[logging]
+db_path = /var/lib/hpc_eff/history.db
+state_json_path = /var/lib/hpc_eff/state.json
+history_length = 10
+```
 
 ---
 
