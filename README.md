@@ -78,7 +78,18 @@ history_length = 10
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
-8. To read from the created database:
+8. You can enable or disable a system cronjob using command-line switches.
+    ```bash
+    hpc-eff --enable
+    hpc-eff --disable
+
+    ```
+    By default, the cronjob runs every 10 minutes and is installed at /etc/cron.d/hpc-eff.
+    You can customize the path and interval:
+    ```bash
+    hpc-eff --enable --cron-path /custom/path --cron-interval 5
+    ```
+9. To read from the created database:
     ```bash
     sudo cp /var/lib/hpc_eff/history.db ~/history.db
     sqlite3 ~/history.db

@@ -6,6 +6,8 @@ import sqlite3
 
 from .utils.create_log_db import create_log_db
 from .utils.controller import run_evaluation
+from .utils.cron_control import enable_cron, disable_cron
+import argparse
 
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
@@ -54,6 +56,32 @@ temp_threshold = config.getint("TEMPERATURE", "THRESHOLD", fallback=80)
 
 def main():
     debug_log("Starting HPC efficiency evaluator...")
+    parser = argparse.ArgumentParser(prog="hpc-eff", description="HPC efficiency evaluator")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--enable", action="store_true", help="Enable cronjob (/etc/cron.d/hpc-eff) to run every 10 minutes")
+    group.add_argument("--disable", action="store_true", help="Disable cronjob and remove /etc/cron.d/hpc-eff")
+    parser.add_argument("--cron-path", default="/etc/cron.d/hpc-eff", help="Path to cron file to create/remove")
+    parser.add_argument("--cron-interval", type=int, default=10, help="Interval in minutes for cron schedule (1-60)")
+
+    args, _ = parser.parse_known_args()
+
+    if args.enable:
+        try:
+            enable_cron(cron_path=args.cron_path, command="/usr/bin/hpc-eff", interval_minutes=args.cron_interval)
+            print(f"Cronjob enabled at {args.cron_path}")
+        except PermissionError:
+            print("Permission denied: enabling cron requires root. Run with sudo.")
+            raise
+        return
+
+    if args.disable:
+        try:
+            disable_cron(cron_path=args.cron_path)
+            print(f"Cronjob disabled and {args.cron_path} removed (if existed)")
+        except PermissionError:
+            print("Permission denied: disabling cron requires root. Run with sudo.")
+            raise
+        return
 
     # Delegate evaluation and actions to controller
     run_evaluation(conn, config, static_context, debug_log)
