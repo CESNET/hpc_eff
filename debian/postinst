@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+# postinst script for hpc-eff
+# This script is executed after the package is installed.
+
+case "$1" in
+    configure)
+        # Enable the cron job when package is installed
+        if [ -x /usr/bin/hpc-eff ]; then
+            echo "Setting up cron job for hpc-eff..."
+            /usr/bin/hpc-eff --enable 2>/dev/null || true
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

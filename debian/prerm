@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+# prerm script for hpc-eff
+# This script is executed before the package is removed.
+
+case "$1" in
+    remove)
+        # Disable the cron job when package is removed
+        if [ -x /usr/bin/hpc-eff ]; then
+            echo "Removing cron job for hpc-eff..."
+            /usr/bin/hpc-eff --disable 2>/dev/null || true
+        fi
+        ;;
+    upgrade|deconfigure)
+        ;;
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
