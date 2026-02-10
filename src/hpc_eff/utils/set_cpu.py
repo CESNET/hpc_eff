@@ -77,12 +77,12 @@ def set_cpu_freq(number, conn=None, **context):
     - Uses cpupower frequency-set to set max frequency.
     """
     try:
-        if 'freq_max' in context and context['freq_max'] is not None:
+        if context.get('freq_max'):
             selected_freq_khz = context['freq_max']
         else:
-            local_config = configparser.ConfigParser()
-            local_config.read('/etc/hpc_eff/config.ini')
-            freq_list = get_freq_list(local_config)
+            if config is None:
+                raise ValueError("Config required for frequency calculation")
+            freq_list = get_freq_list(config)
             selected_freq_khz = calculate_selected_freq(number, freq_list)
 
         command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
@@ -93,11 +93,13 @@ def set_cpu_freq(number, conn=None, **context):
             # Update context with freq_max if not already there
             context.setdefault('freq_max', selected_freq_khz)
             log_setting(conn, freq_min=0, **context)
+        return selected_freq_khz
 
     except ValueError as e:
         logger.error(f"Error: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+    return None
 
 def log_setting(conn, **kwargs):
     """Log full context into SQLite using the new schema."""
