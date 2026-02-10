@@ -24,6 +24,25 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
 
 ---
 
+
+## Logging & Monitoring
+
+The application maintains two types of logs:
+- **SQLite Database**: Detailed historical logs stored at `/var/lib/hpc_eff/history.db`.
+- **JSON State File**: A consolidated state file at `/var/lib/hpc_eff/state.json` containing:
+    - `static`: System metadata (score, power command, active plugins).
+    - `current`: Latest evaluation results (rating, price, power, temp, etc.).
+    - `history`: A rolling history of previous evaluations.
+
+These can be configured in `/etc/hpc_eff/config.ini`:
+```ini
+[logging]
+db_path = /var/lib/hpc_eff/history.db
+state_json_path = /var/lib/hpc_eff/state.json
+history_length = 10
+```
+--- 
+
 ## Installation
 
 1. Clone the repository:
@@ -53,4 +72,15 @@ It evaluates current energy conditions, prints debug logs if enabled, and sets t
     .tables
     .schema cpu_settings_log 
     SELECT * FROM cpu_settings_log LIMIT 10;
+    ```
+6. You can enable or disable a system cronjob using command-line switches.
+    ```bash
+    hpc-eff --enable
+    hpc-eff --disable
+
+    ```
+    By default, the cronjob runs every 10 minutes and is installed at /etc/cron.d/hpc-eff.
+    You can customize the path and interval:
+    ```bash
+    hpc-eff --enable --cron-path /custom/path --cron-interval 5
     ```

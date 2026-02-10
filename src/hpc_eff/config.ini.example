@@ -12,7 +12,7 @@ API_KEY=XXX
 db_path=/var/lib/hpc_eff/history.db
 log_level=INFO
 state_json_path=/var/lib/hpc_eff/state.json
-history_length=10
+history_length=1000
 
 [aggregation]
 # rating calculation: "price" (default) or "average" (weighted price + CO2)
@@ -33,3 +33,6 @@ intel_e5=3000,2800,2700,2600,2400,2300
 
 # Fallback for unknown model
 default=3000,2800,2700,2600,2400,2200
+
+[FEATURES]
+ENABLE_SET_CPU = yes
