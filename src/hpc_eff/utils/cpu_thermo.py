@@ -4,7 +4,8 @@ import socket
 import time
 import requests
 from .set_cpu import log_setting, logger
-from .system_utils import run_command, read_temperature
+from .system_utils import run_command
+from .temperature_reader import read_temperature
 from .frequency_reader import get_cpu_max_frequency, freq_to_khz, get_cpu_count
 
 
@@ -35,16 +36,15 @@ def apply_cpu_thermo(conn=None, log_context=None, config=None):
     mid_freq = cfg.get(section, "MID_FREQUENCY", fallback=None)
     low_freq = cfg.get(section, "LOW_FREQUENCY", fallback=None)
 
-    sensor = cfg.get(section, "SENSOR_NAME", fallback=None)
     enable_log = cfg.getint(section, "ENABLE_LOG", fallback=1)
 
-    if not all([mid_limit is not None, high_limit is not None, high_freq, mid_freq, low_freq, sensor]):
+    if not all([mid_limit is not None, high_limit is not None, high_freq, mid_freq, low_freq]):
         logger.debug("Incomplete CPU_THERMO config; skipping cpu_thermo.")
         return {"temperature": None, "changed": False, "target_freq": None}
 
-    temp = read_temperature(sensor)
+    temp = read_temperature(config)
     if temp is None:
-        logger.warning(f"Unable to read temperature from sensor '{sensor}'.")
+        logger.warning("Unable to read temperature from configured source.")
         return {"temperature": None, "changed": False, "target_freq": None}
 
     # Read current max freq (kHz) from sysfs

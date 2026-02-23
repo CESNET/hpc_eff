@@ -1,3 +1,4 @@
+from typing import Optional
 import re
 import shutil
 import glob
@@ -76,7 +77,7 @@ def get_cpu_frequency():
     return get_freq_lscpu()
 
 
-def get_cpu_max_frequency(cpu_id: int = 0) -> int | None:
+def get_cpu_max_frequency(cpu_id: int = 0) -> Optional[int]:
     """
     Read current CPU max frequency from sysfs.
 
@@ -93,7 +94,7 @@ def get_cpu_max_frequency(cpu_id: int = 0) -> int | None:
         return None
 
 
-def get_cpu_min_frequency(cpu_id: int = 0) -> int | None:
+def get_cpu_min_frequency(cpu_id: int = 0) -> Optional[int]:
     """
     Read current CPU min frequency from sysfs.
 
