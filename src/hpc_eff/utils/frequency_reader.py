@@ -1,22 +1,53 @@
-
-import subprocess
+from typing import Optional
 import re
 import shutil
+import glob
+
+from .system_utils import run_command
 
 
-def run_command(cmd):
-    """Helper function to run shell commands."""
-    result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
-    return result.stdout.strip()
+def freq_to_khz(freq_str):
+    """Convert a frequency value to kHz (int).
+
+    Accepts strings with units ('2.40GHz', '2400MHz', '2400000KHz') or a
+    bare numeric value. Bare numbers are assumed to be MHz when < 10000,
+    otherwise kHz. Returns 0 for unparseable strings.
+    """
+    if isinstance(freq_str, (int, float)):
+        if freq_str < 10000:
+            return int(freq_str * 1000)
+        return int(freq_str)
+
+    s = freq_str.strip().upper()
+    if s.endswith("GHZ"):
+        val = float(s[:-3])
+        return int(val * 1000000)
+    elif s.endswith("MHZ"):
+        val = float(s[:-3])
+        return int(val * 1000)
+    elif s.endswith("KHZ"):
+        val = float(s[:-3])
+        return int(val)
+    else:
+        # assume MHz
+        try:
+            val = float(s)
+            return int(val * 1000)
+        except ValueError:
+            return 0
+
+
+def get_cpu_count() -> int:
+    """Return the number of CPU cores found in /sys/devices/system/cpu/."""
+    cpus = glob.glob("/sys/devices/system/cpu/cpu[0-9]*")
+    return len(cpus)
 
 
 def get_freq_cpufreq():
     """Reads current CPU frequency using cpufreq-info -f.
-    Returns frequency in MHz (converted from kHz if needed)."""
+    Returns frequency in MHz (converted from kHz)."""
     output = run_command("cpufreq-info -f -c 0")
     try:
-        # output is usually in kHz from cpufreq-info? Check man page or assume typical behavior
-        # hpc-eff original code treated it as kHz and divided by 1000.
         khz = int(output.strip())
         return khz // 1000
     except ValueError:
@@ -24,7 +55,7 @@ def get_freq_cpufreq():
 
 
 def get_freq_proc_cpuinfo():
-    """Reads average frequency from /proc/cpuinfo."""
+    """Reads average frequency from /proc/cpuinfo. Returns MHz (int)."""
     output = run_command("cat /proc/cpuinfo | grep 'cpu MHz'")
     try:
         freqs = [float(line.split(":")[1]) for line in output.splitlines()]
@@ -32,8 +63,9 @@ def get_freq_proc_cpuinfo():
     except Exception:
         return None
 
+
 def get_freq_lscpu():
-    """Reads frequency from lscpu output."""
+    """Reads frequency from lscpu output. Returns MHz (int)."""
     output = run_command("lscpu")
     match = re.search(r"CPU MHz:\s+(\d+(\.\d+)?)", output)
     return int(float(match.group(1))) if match else None
@@ -56,14 +88,7 @@ def get_cpu_frequency():
     return get_freq_lscpu()
 
 
-def get_cpu_count():
-    try:
-        return int(run_command("nproc"))
-    except:
-        return 1
-
-
-def get_cpu_max_frequency(cpu_id=0):
+def get_cpu_max_frequency(cpu_id: int = 0) -> Optional[int]:
     """Read max scaling frequency for a given CPU from sysfs.
     Returns frequency in kHz, or None.
     """
@@ -75,30 +100,13 @@ def get_cpu_max_frequency(cpu_id=0):
         return None
 
 
-def freq_to_khz(freq_str):
-    """Convert a frequency string (e.g. '2.40GHz', '2400MHz') to kHz int."""
-    if isinstance(freq_str, (int, float)):
-        # assume MHz if no unit? or kHz?
-        # Better safe context: if > 10000 probably kHz, else MHz?
-        # But commonly in this app config values are in MHz (3000, 2200).
-        if freq_str < 10000:
-            return int(freq_str * 1000)
-        return int(freq_str)
-
-    s = freq_str.strip().upper()
-    if s.endswith("GHZ"):
-        val = float(s[:-3])
-        return int(val * 1000000)
-    elif s.endswith("MHZ"):
-        val = float(s[:-3])
-        return int(val * 1000)
-    elif s.endswith("KHZ"):
-        val = float(s[:-3])
-        return int(val)
-    else:
-        # assume MHz
-        try:
-            val = float(s)
-            return int(val * 1000)
-        except ValueError:
-            return 0
+def get_cpu_min_frequency(cpu_id: int = 0) -> Optional[int]:
+    """Read min scaling frequency for a given CPU from sysfs.
+    Returns frequency in kHz, or None.
+    """
+    path = f"/sys/devices/system/cpu/cpu{cpu_id}/cpufreq/scaling_min_freq"
+    try:
+        with open(path, "r") as f:
+            return int(f.read().strip())
+    except Exception:
+        return None

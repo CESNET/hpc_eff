@@ -2,13 +2,10 @@ import subprocess
 import socket
 from datetime import datetime
 import sqlite3
-import configparser
 import logging
 
-config = configparser.ConfigParser()
-config.read("/etc/hpc_eff/config.ini")
 logging.basicConfig(
-    level=config.get("logging", "log_level", fallback="INFO"),
+    level="INFO",
     format="%(asctime)s %(levelname)-8s | %(message)s",
     force=True
 )
@@ -61,13 +58,15 @@ def calculate_selected_freq(number, freq_list):
     selected_freq_mhz = sorted(freq_list, reverse=True)[index]
     return selected_freq_mhz * 1000  # returns in kHz
 
-def set_cpu_freq(number, conn=None, **context):
+def set_cpu_freq(number, conn=None, config=None, **context):
     """
     Selects CPU frequency based on input number (1-10) and available frequencies.
 
     Parameters:
     - number (int): Value from 1 to 10.
     - conn: SQLite connection for logging.
+    - config: configparser.ConfigParser instance. Required unless a precomputed
+      'freq_max' (kHz) is supplied in context as an override.
     - context: Full log context.
 
     Rules:
@@ -75,8 +74,13 @@ def set_cpu_freq(number, conn=None, **context):
     - 10 maps to the lowest available frequency.
     - Values in between are scaled dynamically.
     - Uses cpupower frequency-set to set max frequency.
+
+    Returns the selected max frequency in kHz, or None on failure.
     """
     try:
+        if config is not None:
+            logger.setLevel(config.get("logging", "log_level", fallback="INFO"))
+
         if context.get('freq_max'):
             selected_freq_khz = context['freq_max']
         else:
@@ -109,8 +113,8 @@ def log_setting(conn, **kwargs):
             INSERT INTO cpu_settings_log
             (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
              co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating,
-             rating_price, rating_co2)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             rating_price, rating_co2, temperature)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             datetime.utcnow().isoformat(),
             socket.gethostname(),
@@ -127,6 +131,7 @@ def log_setting(conn, **kwargs):
             kwargs.get('rating'),
             kwargs.get('rating_price'),
             kwargs.get('rating_co2'),
+            kwargs.get('temperature'),
         ))
         conn.commit()
         logger.info("DB log entry inserted")

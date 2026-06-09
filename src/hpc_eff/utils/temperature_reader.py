@@ -3,11 +3,14 @@
 Supports multiple temperature sources:
 1. IPMI sensor (via ipmitool)
 2. HTTP API (e.g., GreenDIGIT, custom JSON endpoints)
+3. Custom user-provided module ("bring your own reader")
 
 Configuration is done via config.ini under [TEMPERATURE_SOURCE] section.
 """
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import json
 import re
 from typing import Optional, Any
@@ -122,6 +125,54 @@ class HTTPAPISource(TemperatureSource):
         return current
 
 
+class CustomSource(TemperatureSource):
+    """Read temperature from a user-provided Python module ("bring your own reader").
+
+    The module must expose a callable (default name ``read``) that returns a
+    temperature in Celsius as a number, or None on failure. This lets an
+    operator plug in any sensor or data source (a rack PDU API, a cooling-loop
+    probe, a site-specific script, ...) without modifying hpc_eff itself.
+    """
+
+    def __init__(self, module: str, func_name: str = "read"):
+        """
+        Args:
+            module: Either a filesystem path to a .py file (e.g.
+                "/opt/mysensors/my_reader.py") or an importable dotted module
+                name (e.g. "mypkg.mysensor").
+            func_name: Name of the callable to invoke (default "read").
+        """
+        self.module = module
+        self.func_name = func_name
+
+    def _load_callable(self):
+        """Load the configured module and return its target callable, or None."""
+        if self.module.endswith(".py") or "/" in self.module:
+            # Filesystem path to a standalone .py file
+            spec = importlib.util.spec_from_file_location("hpc_eff_custom_temp", self.module)
+            if not spec or not spec.loader:
+                return None
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        else:
+            # Importable dotted module name
+            mod = importlib.import_module(self.module)
+        return getattr(mod, self.func_name, None)
+
+    def read(self) -> Optional[float]:
+        """Invoke the user callable and coerce its result to float Celsius."""
+        try:
+            fn = self._load_callable()
+            if not callable(fn):
+                return None
+            value = fn()
+            if value is None:
+                return None
+            return float(value)
+        except Exception:
+            return None
+
+
 def create_temperature_source(config) -> Optional[TemperatureSource]:
     """Factory function to create appropriate temperature source from config.
 
@@ -148,6 +199,13 @@ def create_temperature_source(config) -> Optional[TemperatureSource]:
             return None
         json_path = config.get("TEMPERATURE_SOURCE", "HTTP_JSON_PATH", fallback=None)
         return HTTPAPISource(url, json_path)
+
+    elif source_type == "custom":
+        module = config.get("TEMPERATURE_SOURCE", "MODULE", fallback=None)
+        if not module:
+            return None
+        func_name = config.get("TEMPERATURE_SOURCE", "FUNCTION", fallback="read")
+        return CustomSource(module, func_name)
 
     return None
 
