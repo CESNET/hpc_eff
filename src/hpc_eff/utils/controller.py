@@ -1,8 +1,15 @@
 """Controller/orchestrator for evaluation and action calls.
 
-Moves logic out of `main.py`: gathers inputs (price, power, freq, CO2),
-computes ratings and log context, and conditionally calls terminal
-actions like `set_cpu_freq` based on config flags.
+Moves logic out of `main.py`: gathers inputs (price, power, freq, CO2,
+temperature), computes ratings and log context, and conditionally calls the
+terminal actions `apply_cpu_thermo` and `set_cpu_freq` based on config flags.
+
+Two independent feature flags drive the pipeline (see [FEATURES] in config):
+- ENABLE_SET_CPU   : price/CO2 -> rating -> max-frequency cap
+- ENABLE_CPU_THERMO: temperature -> hysteresis-based max-frequency control
+
+Both may run together; when both are on, temperature acts as a hard limit:
+exceeding TEMPERATURE/THRESHOLD forces the rating to 10 (lowest frequency).
 """
 
 import json
@@ -13,6 +20,7 @@ from .energy_price import get_current_energy_price, get_averages_year, classify_
 from .power_reader import get_power_reading
 from .frequency_reader import get_cpu_frequency
 from .co2_value import co2_value
+from .cpu_thermo import apply_cpu_thermo
 from .set_cpu import set_cpu_freq
 
 def update_state_json(new_entry, state_file_path, history_length, static_context, debug_log):
@@ -20,7 +28,7 @@ def update_state_json(new_entry, state_file_path, history_length, static_context
     state_path = Path(state_file_path)
     try:
         state_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         data = {"static": static_context, "history": [], "current": {}}
         if state_path.exists():
             try:
@@ -28,15 +36,15 @@ def update_state_json(new_entry, state_file_path, history_length, static_context
                     data = json.load(f)
             except (json.JSONDecodeError, IOError):
                 pass
-        
+
         data["current"] = new_entry
         data["history"].insert(0, new_entry)
         data["history"] = data["history"][:history_length]
         data["static"] = static_context
-        
+
         with open(state_path, "w") as f:
             json.dump(data, f, indent=4)
-        
+
         state_path.chmod(0o644)
         debug_log(f"Updated state JSON at {state_file_path}")
     except Exception as e:
@@ -51,22 +59,25 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         static_context: dict with static values (score_name, score_value)
         debug_log: callable for debug logging
 
-    This function mirrors the logic previously embedded in `main.main()`.
-    It reads the config flag `FEATURES/ENABLE_SET_CPU` to decide whether 
-    to call the final actions.
+    Reads the config flags `FEATURES/ENABLE_CPU_THERMO` and
+    `FEATURES/ENABLE_SET_CPU` to decide which final actions to call. Data that
+    a disabled action would need is not gathered, to save work.
     """
     debug_log("Controller: starting evaluation")
 
-    # Determine which final actions are enabled
+    # Determine which final actions are enabled; avoid gathering data
+    # that we don't need when the corresponding action is disabled.
+    enable_thermo = config.getboolean("FEATURES", "ENABLE_CPU_THERMO", fallback=True)
     enable_set_cpu = config.getboolean("FEATURES", "ENABLE_SET_CPU", fallback=True)
 
     # initialize placeholders
-    price = power_w = cpu_freq_current = None
+    price = power_w = cpu_freq_current = temperature = None
     available_freqs = available_govs = average_prices = historical_values = []
     current_price = None
     rating = 5  # neutral default if not computed
     current_value = median_value = grade = None
     price_notes = []
+    temp_notes = []
 
     # Build base log_context with static info
     log_context = static_context.copy()
@@ -96,7 +107,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         except Exception as e:
             debug_log(f"Error reading CPU frequency: {e}")
 
-        # Get year average prices (for classification)
+        # Get year average prices (used for both logging and classification)
         try:
             average_prices = get_averages_year()
             debug_log(f"Average monthly prices last year (CZK/MWh): {average_prices}")
@@ -106,10 +117,9 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         # Determine current_price
         current_price = price
 
-        # Get historical prices, classify and rate it
+        # Classify and rate the current price against the same year history
         try:
-            history = get_averages_year()
-            classify, rating = classify_price_by_median(current_price, history)
+            classify, rating = classify_price_by_median(current_price, average_prices)
             debug_log(f"The current price of {current_price} is {classify} ({rating}).")
             price_notes.append(f"Price {current_price} is {classify}")
         except Exception as e:
@@ -142,13 +152,61 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     # Ensure core metrics are in log_context for other functions
     log_context.update({
         "rating": rating,
+        "temperature": temperature,
     })
+
+    # Get previous temperature for comparison (rising/dropping annotation)
+    old_temp = None
+    try:
+        state_file_path = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")
+        if Path(state_file_path).exists():
+            with open(state_file_path, "r") as f:
+                old_data = json.load(f)
+                old_temp = old_data.get("current", {}).get("temperature")
+    except Exception:
+        pass
+
+    # Apply temperature-based CPU frequency control
+    thermo_freq_limit = None
+    if enable_thermo:
+        try:
+            res = apply_cpu_thermo(conn, log_context, config)
+            temperature = res.get("temperature")
+            log_context["temperature"] = temperature  # update with real reading
+
+            status_msg = f"Temp {temperature} C"
+            if temperature is not None and old_temp is not None:
+                if temperature >= old_temp + 2:
+                    status_msg += " (rising)"
+                elif temperature <= old_temp - 2:
+                    status_msg += " (dropping)"
+
+            if res.get("changed"):
+                thermo_freq_limit = res.get('target_freq')
+                debug_log(f"cpu_thermo applied target {thermo_freq_limit}")
+                temp_notes.append(f"{status_msg}: Applied thermal frequency limit: {thermo_freq_limit}")
+            else:
+                current_target = res.get('target_freq')
+                temp_notes.append(f"{status_msg}: Thermal state stable at {current_target}")
+        except Exception as e:
+            debug_log(f"cpu_thermo error: {e}")
+            temp_notes.append(f"Thermal policy evaluation error: {e}")
+    else:
+        debug_log("CPU thermo disabled; skipping")
+
+    # Check temperature threshold and possibly adjust rating (temperature wins)
+    temp_threshold = config.getint("TEMPERATURE", "THRESHOLD", fallback=80)
+    if temperature is not None and temperature > temp_threshold:
+        debug_log(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
+        rating = 10
+        log_context["rating"] = rating
+        temp_notes.append(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
 
     # Set CPU max frequency based on rating
     selected_freq = None
     if enable_set_cpu:
         debug_log(f"Current rating: {rating}")
-        selected_freq = set_cpu_freq(rating, conn, **log_context)
+        selected_freq = set_cpu_freq(rating, conn, config, **log_context)
         if selected_freq:
             price_notes.append(f"Rating {rating} set {selected_freq}kHz")
     else:
@@ -158,8 +216,16 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     json_entry = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
-    
-    # Only fields related to price/rating/frequency setting if enabled
+
+    # Temperature/thermo fields only if the thermo action is enabled
+    if enable_thermo:
+        json_entry.update({
+            "temperature": temperature,
+            "thermo_freq_limit": thermo_freq_limit,
+            "action_temp": "; ".join(temp_notes),
+        })
+
+    # Price/rating/frequency fields only if set_cpu is enabled
     if enable_set_cpu:
         json_entry.update({
             "rating": rating,
