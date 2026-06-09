@@ -1,0 +1,29 @@
+hpc-eff (0.3-1) experimental; urgency=medium
+
+  * Implemented modular temperature reading system with pluggable sources.
+  * Added support for HTTP API temperature sensors with JSON path extraction.
+  * Maintained backward compatibility with IPMI sensor configuration.
+  * Centralized utilities to eliminate code duplication (freq_to_khz, get_cpu_count).
+  * Implemented dependency injection for configuration management.
+  * Created controller orchestration layer with conditional feature execution.
+  * Added CLI flags for cron job management (--enable/--disable).
+  * Integrated cron control into Debian package hooks (postinst/prerm).
+  * Optimized data gathering to skip unnecessary API calls when features disabled.
+  * Fixed Python 3.7+ type annotation compatibility.
+
+ -- CESNET <vondruska@cesnet.cz>  Sun, 23 Feb 2026 14:30:00 +0100
+
+hpc-eff (0.2-1) experimental; urgency=medium
+
+  * Integrated JSON logging feature for evaluation state and history.
+  * Refactored core logic into controller.py for better modularity.
+  * Added temperature-based CPU frequency control.
+  * Enhanced static context with power command and active plugins.
+
+ -- CESNET <pailozian@cesnet.cz>  Mon, 02 Feb 2026 15:42:00 +0100
+
+hpc-eff (0.1-1) experimental; urgency=medium
+
+  * Initial release.
+
+ -- CESNET <pailozian@cesnet.cz>  Mon, 01 Dec 2025 12:43:41 +0100
