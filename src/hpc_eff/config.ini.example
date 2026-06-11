@@ -5,6 +5,7 @@ POWERREADINGCMD=ipmitool dcmi power reading
 DEBUG=yes
 
 [API]
+# Credentials for the CO2 intensity API (https://www.nowtricity.com/)
 USER_AGENT=UserAgentString
 API_KEY=XXX
 
@@ -14,14 +15,29 @@ log_level=INFO
 state_json_path=/var/lib/hpc_eff/state.json
 history_length=1000
 
-[aggregation]
-# rating calculation: "price" (default) or "average" (weighted price + CO2)
-rating_type=price
-weight_price=0.4
-weight_co2=0.6
-# w(price) < w(co2): means sustainability matters more.
+[MODE]
+# Convenience preset. When set, it DRIVES the [FEATURES] flags below,
+# overriding their manual values:
+#   temperature -> ENABLE_CPU_THERMO=yes, ENABLE_SET_CPU=no
+#   co2         -> ENABLE_CPU_THERMO=no,  ENABLE_SET_CPU=yes
+#   both        -> ENABLE_CPU_THERMO=yes, ENABLE_SET_CPU=yes  (temperature wins)
+# Remove/comment this (or use an unknown value) to control the regulators
+# manually via [FEATURES] instead.
+control_mode=co2
+
+[FEATURES]
+# Independent regulator switches. Used as-is when [MODE] control_mode is unset;
+# otherwise the [MODE] preset above overrides them.
+#   ENABLE_SET_CPU    : price/CO2 -> rating (1-10) -> CPU max-frequency cap
+#   ENABLE_CPU_THERMO : temperature -> hysteresis-based CPU max-frequency control
+# When both are enabled, temperature acts as a hard limit: exceeding
+# [TEMPERATURE] THRESHOLD forces the rating to 10 (lowest frequency).
+ENABLE_SET_CPU=yes
+ENABLE_CPU_THERMO=no
 
 [frequency_tables]
+# Per-CPU-model frequency tables (MHz), highest first. Used by the price/CO2
+# regulator to map a rating (1-10) onto a CPU max frequency.
 # AMD EPYC
 amd_epyc=2400,2000,1500
 
@@ -34,5 +50,48 @@ intel_e5=3000,2800,2700,2600,2400,2300
 # Fallback for unknown model
 default=3000,2800,2700,2600,2400,2200
 
-[FEATURES]
-ENABLE_SET_CPU = yes
+[TEMPERATURE]
+# Hard threshold (degrees Celsius). If a reading exceeds this and the price/CO2
+# regulator is enabled, the rating is forced to 10 (lowest frequency).
+THRESHOLD=80
+
+[TEMPERATURE_SOURCE]
+# Where to read temperature from. TYPE can be: ipmi | http_api | custom
+
+# Example 1: IPMI sensor via ipmitool
+TYPE=ipmi
+IPMI_SENSOR_NAME=INLET_AIR_TEMP
+
+# Example 2: HTTP API with optional JSON extraction (GreenDIGIT style)
+# TYPE=http_api
+# HTTP_URL=http://192.168.1.100/api/greendigit/data
+# HTTP_JSON_PATH=temperature.value
+#   If the response is {"temperature": {"value": 25.5}, ...} then
+#   HTTP_JSON_PATH=temperature.value extracts 25.5. Omit it if the endpoint
+#   returns a plain number.
+
+# Example 3: Custom reader ("bring your own reader")
+# TYPE=custom
+# MODULE=/opt/mysensors/my_reader.py   # path to a .py file OR an importable dotted module name
+# FUNCTION=read                        # callable returning Celsius as a number; defaults to "read"
+
+[CPU_THERMO]
+# Temperature bands (degrees Celsius) and the target frequency for each band.
+MID_LIMIT=29
+HIGH_LIMIT=32
+
+# Target frequencies (string format, e.g. "3.10GHz")
+HIGH_FREQUENCY=3.10GHz
+MID_FREQUENCY=2.30GHz
+LOW_FREQUENCY=1.50GHz
+
+# Enable DB logging of thermal actions (1) and optional Slack webhook.
+ENABLE_LOG=1
+#SLACK_URL=
+
+# [aggregation] is reserved and NOT currently read by the code. It is kept here
+# for reference; it was intended for a future weighted price+CO2 rating.
+#[aggregation]
+#rating_type=price        # "price" (default) or "average" (weighted price + CO2)
+#weight_price=0.4
+#weight_co2=0.6

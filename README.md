@@ -30,19 +30,29 @@ Steps 2–7 run only when the price/CO₂ regulator is enabled, and step 9 runs 
 
 ## Regulation modes
 
-Two independent regulators are controlled by flags in the `[FEATURES]` section of the config. Either, both, or neither may be active:
+Two independent regulators decide the CPU frequency:
+- **price/CO₂** → computes a rating (1–10) → caps the CPU max frequency;
+- **temperature** → hysteresis-based CPU max-frequency control.
+
+The simplest way to choose is the `[MODE]` preset:
+
+```ini
+[MODE]
+# temperature | co2 | both
+control_mode = co2
+```
+
+- `co2` → price/CO₂ only (classic energy governor)
+- `temperature` → temperature only
+- `both` → both run; temperature acts as a hard limit (if the reading exceeds `[TEMPERATURE] THRESHOLD`, the rating is forced to 10 / lowest frequency)
+
+`control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
 
 ```ini
 [FEATURES]
-# price/CO₂ → rating (1–10) → CPU max-frequency cap
-ENABLE_SET_CPU = yes
-# temperature → hysteresis-based CPU max-frequency control
-ENABLE_CPU_THERMO = no
+ENABLE_SET_CPU = yes      # price/CO₂ regulator
+ENABLE_CPU_THERMO = no    # temperature regulator
 ```
-
-- **Price/CO₂ only** — `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=no` (classic energy governor).
-- **Temperature only** — `ENABLE_SET_CPU=no`, `ENABLE_CPU_THERMO=yes`.
-- **Both** — when both are on, temperature acts as a hard limit: if the reading exceeds `[TEMPERATURE] THRESHOLD`, the rating is forced to 10 (lowest frequency).
 
 ### Temperature source ("bring your own reader")
 
