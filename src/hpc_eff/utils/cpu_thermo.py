@@ -1,9 +1,8 @@
-import subprocess
 import re
 import socket
 import time
 import requests
-from .set_cpu import log_setting, logger
+from .set_cpu import log_setting, logger, set_max_freq_khz
 from .system_utils import run_command
 from .temperature_reader import read_temperature
 from .frequency_reader import get_cpu_max_frequency, freq_to_khz, get_cpu_count
@@ -91,15 +90,12 @@ def apply_cpu_thermo(conn=None, log_context=None, config=None):
         logger.info(f"Temperature {temp}°C → target {target_freq} already set.")
         return {"temperature": temp, "changed": False, "target_freq": target_freq}
 
-    # Apply new freq per CPU using cpufreq-set (cpufrequtils)
+    # Apply the new max frequency to every CPU using the available tool
+    # (cpupower or cpufreq-set, auto-detected in set_max_freq_khz).
     cpu_count = get_cpu_count()
     success = True
     for cpu in range(cpu_count):
-        cmd = f"cpufreq-set -c {cpu} --max {target_freq} >/dev/null 2>&1"
-        try:
-            subprocess.run(cmd, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to set cpu{cpu} max freq to {target_freq}: {e}")
+        if not set_max_freq_khz(target_khz, cpu=cpu):
             success = False
 
     if success:

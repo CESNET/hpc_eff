@@ -1,3 +1,10 @@
 #!/usr/bin/make -f
 %:
 	dh $@ --with python3 --buildsystem=pybuild
+
+# Ship config.ini.example as reference and install it as the active conffile
+# /etc/hpc_eff/config.ini (mirrors the RPM spec behaviour). Files under /etc
+# are treated as conffiles by dh automatically.
+override_dh_install:
+	dh_install
+	install -D -m 644 src/hpc_eff/config.ini.example debian/hpc-eff/etc/hpc_eff/config.ini

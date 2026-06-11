@@ -1,5 +1,6 @@
 import subprocess
 import socket
+import shutil
 from datetime import datetime
 import sqlite3
 import logging
@@ -11,6 +12,31 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("hpc_eff")
+
+def set_max_freq_khz(khz, cpu=None):
+    """Set the CPU max scaling frequency (in kHz) using whichever tool is present.
+
+    Prefers `cpupower` (native on RHEL via kernel-tools); falls back to
+    `cpufreq-set` (native on Debian/Ubuntu via cpufrequtils). When `cpu` is
+    given the limit is applied to that single CPU, otherwise to all CPUs.
+
+    Returns True on success, False otherwise.
+    """
+    cpu_args = ["-c", str(cpu)] if cpu is not None else []
+    if shutil.which("cpupower"):
+        cmd = ["cpupower"] + cpu_args + ["frequency-set", "-u", str(khz)]
+    elif shutil.which("cpufreq-set"):
+        cmd = ["cpufreq-set"] + cpu_args + ["--max", str(khz)]
+    else:
+        logger.error("No CPU frequency tool found (need cpupower or cpufreq-set)")
+        return False
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        logger.info(f"Set max frequency: {' '.join(cmd)}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set max frequency via {cmd[0]}: {e}")
+        return False
 
 def get_cpu_type():
     try:
@@ -89,9 +115,8 @@ def set_cpu_freq(number, conn=None, config=None, **context):
             freq_list = get_freq_list(config)
             selected_freq_khz = calculate_selected_freq(number, freq_list)
 
-        command = ["cpupower", "frequency-set", "-u", f"{selected_freq_khz}"]
-        subprocess.run(command, check=True)
-        logger.info(f"Command to be executed: {' '.join(command)}")
+        if not set_max_freq_khz(selected_freq_khz):
+            return None
 
         if conn:
             # Update context with freq_max if not already there

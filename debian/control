@@ -10,4 +10,5 @@ Package: hpc-eff
 Architecture: any
 Depends: ${python3:Depends}, ${misc:Depends}, python3-numpy, python3-requests, ipmitool, cpufrequtils
 Description: Energy Optimization Governor
- This tool dynamically optimizes frequency of CPU cores based on the hall temperature.
+ Dynamically adjusts CPU max frequency based on electricity price, CO2 intensity
+ and/or temperature. The active regulators are selected via configuration.

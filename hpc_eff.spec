@@ -4,7 +4,7 @@ Name:           %{name}
 Version:        %{version}
 Release:        %{release}
 Summary:        Energy Optimization Governor
-License:        GPL-3.0-or-later
+License:        BSD-3-Clause
 Group:          System Environment/Base
 BuildArch:      noarch
 Vendor:         CESNET
@@ -15,20 +15,21 @@ Requires:       python3-numpy
 Requires:       python3-requests
 BuildRequires:  ipmitool
 Requires:       ipmitool
+# kernel-tools provides cpupower, used to set the CPU max frequency.
+Requires:       kernel-tools
 
 # Disable .pyc/.pyo bytecode compilation during build
 %define __brp_python_bytecompile %{nil}
 
 %description
 This tool dynamically optimizes energy consumption on HPC systems by
-adjusting the CPU frequency according to the current carbon intensity (CI)
-of electricity production.
+adjusting the CPU max frequency according to electricity price, carbon
+intensity (CI) and/or CPU/inlet temperature. The active regulators are
+selected via configuration (price/CO2, temperature, or both).
 
-Designed to be run periodically (e.g., via cron every 5 minutes under root),
-it applies a hardcoded policy that limits CPU frequency in proportion to
-real-time carbon intensity data obtained from the GreenDIGIT CI database.
-The frequency regulator outputs a standardized score (0–100), representing
-the percentage limit relative to the maximum CPU frequency.
+Designed to be run periodically (e.g., via cron every few minutes under
+root), it classifies the current conditions, applies a frequency policy,
+and records each evaluation to an SQLite database and a JSON state file.
 
 %prep
 %setup -q -n %{name}-%{version}

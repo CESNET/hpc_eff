@@ -118,8 +118,8 @@ Then build and install using the packaging for your distribution.
 ### Option A — RPM (Fedora / RHEL / Rocky)
 
 ```bash
-# dependencies
-sudo dnf install ipmitool cpufrequtils make kernel-tools rpm-build rpmdevtools -y
+# dependencies (kernel-tools provides cpupower for setting CPU frequency)
+sudo dnf install ipmitool make kernel-tools rpm-build rpmdevtools -y
 # build and install
 make
 ```
