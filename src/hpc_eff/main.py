@@ -9,6 +9,14 @@ from .utils.create_log_db import create_log_db
 from .utils.controller import run_evaluation
 from .utils.cron_control import enable_cron, disable_cron
 
+# Convenience presets that map [MODE] control_mode to the [FEATURES] flags.
+CONTROL_MODE_PRESETS = {
+    "temperature": {"ENABLE_CPU_THERMO": "yes", "ENABLE_SET_CPU": "no"},
+    "co2":         {"ENABLE_CPU_THERMO": "no",  "ENABLE_SET_CPU": "yes"},
+    "both":        {"ENABLE_CPU_THERMO": "yes", "ENABLE_SET_CPU": "yes"},
+}
+
+
 CONFIG_PATH = "/etc/hpc_eff/config.ini"
 if not os.path.isfile(CONFIG_PATH):
     CONFIG_PATH = "src/hpc_eff/config.ini.example"
@@ -36,7 +44,8 @@ static_context = {
     "plugins": {
         "power": "power_reader.py",
         "price": "energy_price.py",
-        "co2": "co2_value.py"
+        "co2": "co2_value.py",
+        "temperature": "cpu_thermo.py"
     }
 }
 
@@ -46,6 +55,28 @@ def debug_log(message):
     """Log message if debugging is enabled."""
     if debug:
         print(f"[DEBUG] {message}")
+
+def resolve_control_mode(config):
+    """Resolve the [MODE] control_mode preset into [FEATURES] flags.
+
+    When [MODE] control_mode is set (temperature|co2|both) it *drives* the
+    [FEATURES] flags, overriding any manual values. When [MODE] is absent or
+    the value is unknown, the manual [FEATURES] flags are used unchanged
+    (backward-compatible / power-user path).
+    """
+    mode = config.get("MODE", "control_mode", fallback=None)
+    if not mode:
+        return
+    mode = mode.strip().lower()
+    preset = CONTROL_MODE_PRESETS.get(mode)
+    if preset is None:
+        debug_log(f"Unknown control_mode '{mode}'; using [FEATURES] flags as-is")
+        return
+    if not config.has_section("FEATURES"):
+        config.add_section("FEATURES")
+    for key, value in preset.items():
+        config.set("FEATURES", key, value)
+    debug_log(f"control_mode='{mode}' applied -> FEATURES {preset}")
 
 def main():
     debug_log("Starting HPC efficiency evaluator...")
@@ -77,7 +108,8 @@ def main():
             raise
         return
 
-    # Delegate evaluation and actions to controller
+    # Resolve [MODE] preset into [FEATURES] flags, then delegate to controller
+    resolve_control_mode(config)
     run_evaluation(conn, config, static_context, debug_log)
 
 if __name__ == "__main__":
