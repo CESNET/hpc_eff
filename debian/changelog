@@ -1,3 +1,17 @@
+hpc-eff (0.4-1) experimental; urgency=medium
+
+  * Unified CO₂/price and temperature regulation into single codebase.
+  * Added [MODE] control_mode preset (temperature|co2|both).
+  * Implemented custom temperature reader hook (TYPE=custom).
+  * Dual packaging: RPM (AlmaLinux/RHEL) + DEB (Debian/Ubuntu).
+  * Independent feature flags: ENABLE_SET_CPU, ENABLE_CPU_THERMO.
+  * Temperature threshold override (hard limit on CPU frequency).
+  * Centralized command execution (system_utils.py).
+  * Robust frequency parsing (GHz/MHz/kHz support).
+  * Unified database schema with temperature column.
+
+ -- CESNET <pailozian@cesnet.cz>  Tue, 16 Jun 2026 12:00:00 +0200
+
 hpc-eff (0.3-1) experimental; urgency=medium
 
   * Implemented modular temperature reading system with pluggable sources.

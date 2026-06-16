@@ -42,9 +42,11 @@ The simplest way to choose is the `[MODE]` preset:
 control_mode = co2
 ```
 
-- `co2` → price/CO₂ only (classic energy governor)
-- `temperature` → temperature only
-- `both` → both run; temperature acts as a hard limit (if the reading exceeds `[TEMPERATURE] THRESHOLD`, the rating is forced to 10 / lowest frequency)
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
+| `temperature` | Temperature regulator only | Thermal management without energy considerations |
+| `both` | Both regulators active | Maximum efficiency: temperature acts as a hard limit (if reading exceeds `[TEMPERATURE] THRESHOLD`, rating forced to 10 / lowest frequency) |
 
 `control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
 
@@ -53,6 +55,16 @@ control_mode = co2
 ENABLE_SET_CPU = yes      # price/CO₂ regulator
 ENABLE_CPU_THERMO = no    # temperature regulator
 ```
+
+### Configuration mode presets
+
+The `[MODE]` section is syntactic sugar for common configurations. Under the hood:
+
+- `control_mode = co2` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=no`
+- `control_mode = temperature` → `ENABLE_SET_CPU=no`, `ENABLE_CPU_THERMO=yes`
+- `control_mode = both` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=yes`
+
+This design lets you start with a simple preset and later fine-tune individual flags if needed.
 
 ### Temperature source ("bring your own reader")
 
@@ -83,6 +95,47 @@ def read():
 ```
 
 This lets you read from any sensor or data source (a rack PDU API, a cooling-loop probe, a site-specific script) without modifying `hpc_eff` itself.
+
+#### Plugin hook examples
+
+**Example 1: Redfish API reader**
+```python
+# /opt/mysensors/redfish_reader.py
+import requests
+
+def read():
+    resp = requests.get('http://bmc-ip/redfish/v1/Chassis/Self/Thermal', 
+                        auth=('user', 'pass'))
+    data = resp.json()
+    for sensor in data['Temperatures']:
+        if sensor['Name'] == 'Inlet Temp':
+            return sensor['ReadingCelsius']
+    raise ValueError("Sensor not found")
+```
+
+**Example 2: Local GPIO sensor via Adafruit library**
+```python
+# /opt/mysensors/gpio_temp.py
+import adafruit_dht
+import board
+
+def read():
+    dht_sensor = adafruit_dht.DHT22(board.D4)
+    return dht_sensor.temperature
+```
+
+**Example 3: Site-specific wrapper script**
+```python
+# /opt/site/get_rack_temp.py
+import subprocess
+import json
+
+def read():
+    result = subprocess.run(['/usr/local/bin/rack-sensor'], 
+                          capture_output=True, text=True)
+    data = json.loads(result.stdout)
+    return float(data['avg_temperature'])
+```
 
 ---
 
@@ -132,29 +185,43 @@ sudo apt update
 sudo apt install build-essential devscripts debhelper dh-make dh-python python3-all python3-setuptools fakeroot
 # runtime dependencies
 sudo apt install ipmitool cpufrequtils python3-numpy python3-requests
-# build the package
-dpkg-buildpackage -us -uc
+
+# build the package (recommended)
+make deb
+
+# or manually:
+# dpkg-buildpackage -us -uc
+
 # install it
-sudo dpkg -i ../hpc-eff_0.1-1_*.deb
+sudo dpkg -i ../hpc-eff_*.deb
+# fix any missing dependencies if needed
+sudo apt-get install -f
 ```
 
 To clean up / remove the DEB package:
 ```bash
-dpkg-buildpackage -tc
 sudo dpkg -r hpc-eff
+# or, to remove config files too:
+sudo dpkg --purge hpc-eff
 ```
+
+**Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu — no conflicts.
 
 ### After install (all distributions)
 
-1. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
+1. The package installs `/etc/hpc_eff/config.ini` from the example. If the file is missing, copy it first:
+    ```bash
+    sudo cp /etc/hpc_eff/config.ini.example /etc/hpc_eff/config.ini
+    ```
+2. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
-2. Test the executable:
+3. Test the executable:
     ```bash
     sudo hpc-eff
     ```
-3. Enable or disable the system cronjob using command-line switches:
+4. Enable or disable the system cronjob using command-line switches:
     ```bash
     hpc-eff --enable
     hpc-eff --disable
@@ -164,7 +231,7 @@ sudo dpkg -r hpc-eff
     ```bash
     hpc-eff --enable --cron-path /custom/path --cron-interval 5
     ```
-4. To read from the created database:
+5. To read from the created database:
     ```bash
     sudo cp /var/lib/hpc_eff/history.db ~/history.db
     sqlite3 ~/history.db

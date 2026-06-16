@@ -1,16 +1,25 @@
 NAME = hpc_eff
-VERSION = 0.1
+VERSION = 0.4
 RELEASE = 1
 RPMDIR = $(HOME)/rpmbuild
 TARBALL = dist/$(NAME)-$(VERSION).tar.gz
 SPECFILE = $(RPMDIR)/SPECS/$(NAME).spec
 RPMFILE = $(RPMDIR)/RPMS/noarch/$(NAME)-$(VERSION)-1.noarch.rpm
 
-.PHONY: all clean sdist rpm install reinstall rpmdevdirs
+# Packaging targets: RPM and DEB are independent.
+# - AlmaLinux/RHEL users: run 'make' (builds RPM only)
+# - Debian/Ubuntu users: run 'make deb' (builds DEB only)
+# No conflicts — each target stays in its own ecosystem.
+
+.PHONY: all clean sdist rpm deb install reinstall rpmdevdirs
 
 all: build
 
 build: clean rpmdevdirs sdist rpm install
+
+deb:
+	@echo "Building Debian package..."
+	dpkg-buildpackage -us -uc
 
 clean:
 	rm -rf build/ dist/ src/$(NAME).egg-info/

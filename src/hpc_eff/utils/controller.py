@@ -75,6 +75,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     available_freqs = available_govs = average_prices = historical_values = []
     current_price = None
     rating = 5  # neutral default if not computed
+    rating_price = rating_co2 = None
     current_value = median_value = grade = None
     price_notes = []
     temp_notes = []
@@ -120,6 +121,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         # Classify and rate the current price against the same year history
         try:
             classify, rating = classify_price_by_median(current_price, average_prices)
+            rating_price = rating
             debug_log(f"The current price of {current_price} is {classify} ({rating}).")
             price_notes.append(f"Price {current_price} is {classify}")
         except Exception as e:
@@ -139,12 +141,17 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
             historical_values, current_value, median_value, grade = None, None, None, "unknown"
             debug_log(f"Error fetching co2 values and rating: {e}")
 
+        # CO2 grade (1 low - 10 high) doubles as the CO2 rating
+        rating_co2 = grade if isinstance(grade, int) else None
+
         # update log_context with gathered values
         log_context.update({
             "price": current_price,
             "co2_current": current_value,
             "co2_median": median_value,
             "co2_grade": grade,
+            "rating_price": rating_price,
+            "rating_co2": rating_co2,
             "power_w": power_w,
             "cpu_freq_current": cpu_freq_current,
         })
@@ -195,7 +202,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         debug_log("CPU thermo disabled; skipping")
 
     # Check temperature threshold and possibly adjust rating (temperature wins)
-    temp_threshold = config.getint("TEMPERATURE", "THRESHOLD", fallback=80)
+    temp_threshold = config.getfloat("TEMPERATURE", "THRESHOLD", fallback=80)
     if temperature is not None and temperature > temp_threshold:
         debug_log(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
         rating = 10
@@ -229,10 +236,14 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     if enable_set_cpu:
         json_entry.update({
             "rating": rating,
+            "rating_price": rating_price,
+            "rating_co2": rating_co2,
             "selected_freq_khz": selected_freq,
             "action_price": "; ".join(price_notes),
             "price": current_price,
             "co2_current": current_value,
+            "co2_median": median_value,
+            "co2_grade": grade,
             "power_w": power_w,
             "cpu_freq_current": cpu_freq_current,
         })

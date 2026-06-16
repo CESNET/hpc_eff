@@ -29,9 +29,9 @@ DB_PATH = Path(DB_PATH_STR).resolve()
 
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-if not DB_PATH.exists():
-    print(f"DB not found; creating {DB_PATH}")
-    create_log_db(DB_PATH)
+# Always run: creates the DB if missing and migrates an existing one
+# (adds any columns added to the schema since the DB was created).
+create_log_db(DB_PATH)
 
 conn = sqlite3.connect(DB_PATH_STR)
 conn.execute("PRAGMA journal_mode=WAL;")
