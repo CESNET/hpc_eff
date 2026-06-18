@@ -29,62 +29,6 @@ Steps 2–7 run only when the price/CO₂ regulator is enabled, step 9 and 11 ru
 
 ---
 
-## Regulation modes
-
-Three independent regulators can control system energy:
-- **price/CO₂** → computes a rating (1–10) → caps the CPU max frequency;
-- **temperature (CPU)** → hysteresis-based CPU max-frequency control;
-- **GPU power** → reduces GPU power limit when temperature exceeds threshold.
-
-The simplest way to choose CPU regulators is the `[MODE]` preset:
-
-```ini
-[MODE]
-# temperature | co2 | both
-control_mode = co2
-```
-
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
-| `temperature` | Temperature regulator only | Thermal management without energy considerations |
-| `both` | Both regulators active | Maximum efficiency: temperature acts as a hard limit (if reading exceeds `[TEMPERATURE] THRESHOLD`, rating forced to 10 / lowest frequency) |
-
-### GPU Power Regulation (NVIDIA GPUs only)
-
-GPU power regulation is independent and controlled via:
-
-```ini
-[FEATURES]
-ENABLE_GPU_POWER = yes
-```
-
-When enabled, the system monitors temperature and:
-- **Below threshold**: GPUs run at full power
-- **Above threshold**: GPU power is limited progressively to cool the system
-
-This is particularly useful in dense compute environments where GPU thermal output can impact overall system cooling.
-
-`control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
-
-```ini
-[FEATURES]
-ENABLE_SET_CPU = yes      # price/CO₂ regulator
-ENABLE_CPU_THERMO = no    # temperature regulator
-```
-
-### Configuration mode presets
-
-The `[MODE]` section is syntactic sugar for common configurations. Under the hood:
-
-- `control_mode = co2` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=no`
-- `control_mode = temperature` → `ENABLE_SET_CPU=no`, `ENABLE_CPU_THERMO=yes`
-- `control_mode = both` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=yes`
-
-This design lets you start with a simple preset and later fine-tune individual flags if needed.
-
----
-
 ## Installation
 
 Clone the repository first:
@@ -181,6 +125,58 @@ sudo dpkg --purge hpc-eff
 
 ---
 
+## Regulation modes
+
+Three independent regulators can control system energy:
+- **price/CO₂** → computes a rating (1–10) → caps the CPU max frequency;
+- **temperature (CPU)** → hysteresis-based CPU max-frequency control;
+- **GPU power** → reduces GPU power limit when temperature exceeds threshold.
+
+The simplest way to choose CPU regulators is the `[MODE]` preset:
+
+```ini
+[MODE]
+# temperature | co2 | both
+control_mode = co2
+```
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
+| `temperature` | Temperature regulator only | Thermal management without energy considerations |
+| `both` | Both regulators active | Maximum efficiency: temperature acts as a hard limit (if reading exceeds `[TEMPERATURE] THRESHOLD`, rating forced to 10 / lowest frequency) |
+
+### GPU Power Regulation (NVIDIA GPUs only)
+
+GPU power regulation is independent and controlled via:
+
+```ini
+[FEATURES]
+ENABLE_GPU_POWER = yes
+```
+
+### Manual feature control
+
+`control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
+
+```ini
+[FEATURES]
+ENABLE_SET_CPU = yes      # price/CO₂ regulator
+ENABLE_CPU_THERMO = no    # temperature regulator
+```
+
+### Configuration mode presets
+
+The `[MODE]` section is syntactic sugar for common configurations. Under the hood:
+
+- `control_mode = co2` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=no`
+- `control_mode = temperature` → `ENABLE_SET_CPU=no`, `ENABLE_CPU_THERMO=yes`
+- `control_mode = both` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=yes`
+
+This design lets you start with a simple preset and later fine-tune individual flags if needed.
+
+---
+
 ## Temperature source ("bring your own reader")
 
 The temperature reading is pluggable via `[TEMPERATURE_SOURCE]`:
@@ -200,56 +196,6 @@ IPMI_SENSOR_NAME = INLET_AIR_TEMP
 # TYPE = custom
 # MODULE = /opt/mysensors/my_reader.py  # file path OR importable dotted module name
 # FUNCTION = read                       # optional, defaults to "read"
-```
-
-For `TYPE=custom`, your module just needs to expose a callable that returns a temperature in Celsius (a number), e.g.:
-
-```python
-def read():
-    return 42.5
-```
-
-This lets you read from any sensor or data source (a rack PDU API, a cooling-loop probe, a site-specific script) without modifying `hpc_eff` itself.
-
-#### Plugin hook examples
-
-**Example 1: Redfish API reader**
-```python
-# /opt/mysensors/redfish_reader.py
-import requests
-
-def read():
-    resp = requests.get('http://bmc-ip/redfish/v1/Chassis/Self/Thermal', 
-                        auth=('user', 'pass'))
-    data = resp.json()
-    for sensor in data['Temperatures']:
-        if sensor['Name'] == 'Inlet Temp':
-            return sensor['ReadingCelsius']
-    raise ValueError("Sensor not found")
-```
-
-**Example 2: Local GPIO sensor via Adafruit library**
-```python
-# /opt/mysensors/gpio_temp.py
-import adafruit_dht
-import board
-
-def read():
-    dht_sensor = adafruit_dht.DHT22(board.D4)
-    return dht_sensor.temperature
-```
-
-**Example 3: Site-specific wrapper script**
-```python
-# /opt/site/get_rack_temp.py
-import subprocess
-import json
-
-def read():
-    result = subprocess.run(['/usr/local/bin/rack-sensor'], 
-                          capture_output=True, text=True)
-    data = json.loads(result.stdout)
-    return float(data['avg_temperature'])
 ```
 
 ---
