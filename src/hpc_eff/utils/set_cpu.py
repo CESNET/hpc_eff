@@ -138,8 +138,9 @@ def log_setting(conn, **kwargs):
             INSERT INTO cpu_settings_log
             (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
              co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating,
-             rating_price, rating_co2, temperature)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             rating_price, rating_co2, temperature, gpu_power_limit, gpu_target_power,
+             gpu_state, gpu_count, gpu_changed, gpu_success)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             datetime.utcnow().isoformat(),
             socket.gethostname(),
@@ -157,6 +158,12 @@ def log_setting(conn, **kwargs):
             kwargs.get('rating_price'),
             kwargs.get('rating_co2'),
             kwargs.get('temperature'),
+            kwargs.get('gpu_power_limit'),
+            kwargs.get('gpu_target_power'),
+            kwargs.get('gpu_state'),
+            kwargs.get('gpu_count'),
+            kwargs.get('gpu_changed'),
+            kwargs.get('gpu_success'),
         ))
         conn.commit()
         logger.info("DB log entry inserted")

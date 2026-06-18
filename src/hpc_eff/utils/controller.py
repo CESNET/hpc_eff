@@ -272,14 +272,16 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     
     # GPU power fields only if GPU power is enabled AND we have a result
     if enable_gpu and gpu_power_result:
-        json_entry.update({
+        gpu_fields = {
             "gpu_power_limit": gpu_power_result.get("power_limit"),
             "gpu_target_power": gpu_power_result.get("target_power"),
             "gpu_state": gpu_power_result.get("state"),
             "gpu_changed": gpu_power_result.get("changed", False),
             "gpu_success": gpu_power_result.get("success", False),
             "gpu_count": gpu_power_result.get("gpu_count"),
-        })
+        }
+        json_entry.update(gpu_fields)
+        log_context.update(gpu_fields)
 
     # Update state JSON
     state_file_path = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")

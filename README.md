@@ -1,7 +1,7 @@
 # hpc_eff
 
 **Energy Optimization Governor** for HPC systems.  
-Dynamically adjusts CPU frequencies based on power, electricity price, CO₂ intensity, and temperature. Which signals drive the decision is fully configurable, and you can plug in your own temperature/data source.
+Dynamically adjusts CPU frequencies and GPU power based on power, electricity price, CO₂ intensity, and temperature. Which signals drive the decision is fully configurable, and you can plug in your own temperature/data source.
 
 All the functionality and code logic located in `src/hpc_eff` stem from https://gitlab.cesnet.cz/dexter/hpc_eff.
 
@@ -10,7 +10,7 @@ All the functionality and code logic located in `src/hpc_eff` stem from https://
 ## Overview
 
 `hpc_eff` is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
-It evaluates current energy/thermal conditions, prints debug logs if enabled, and sets the min and max CPU frequencies accordingly.
+It evaluates current energy/thermal conditions, prints debug logs if enabled, and adjusts CPU frequencies and GPU power accordingly.
 
 **Main steps performed:**
 1. Load configuration from `/etc/hpc_eff/config.ini`
@@ -23,18 +23,20 @@ It evaluates current energy/thermal conditions, prints debug logs if enabled, an
 8. Add current evaluation data and history to a JSON state file (for external monitoring)
 9. Apply temperature-based CPU frequency control
 10. Apply min and max CPU frequencies based on rating
+11. Regulate GPU power based on temperature (if enabled)
 
-Steps 2–7 run only when the price/CO₂ regulator is enabled, and step 9 runs only when the temperature regulator is enabled (see **Regulation modes** below) — data that a disabled regulator would need is not gathered.
+Steps 2–7 run only when the price/CO₂ regulator is enabled, step 9 and 11 run only when their respective regulators are enabled (see **Regulation modes** below) — data that a disabled regulator would need is not gathered.
 
 ---
 
 ## Regulation modes
 
-Two independent regulators decide the CPU frequency:
+Three independent regulators can control system energy:
 - **price/CO₂** → computes a rating (1–10) → caps the CPU max frequency;
-- **temperature** → hysteresis-based CPU max-frequency control.
+- **temperature (CPU)** → hysteresis-based CPU max-frequency control;
+- **GPU power** → reduces GPU power limit when temperature exceeds threshold.
 
-The simplest way to choose is the `[MODE]` preset:
+The simplest way to choose CPU regulators is the `[MODE]` preset:
 
 ```ini
 [MODE]
@@ -47,6 +49,21 @@ control_mode = co2
 | `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
 | `temperature` | Temperature regulator only | Thermal management without energy considerations |
 | `both` | Both regulators active | Maximum efficiency: temperature acts as a hard limit (if reading exceeds `[TEMPERATURE] THRESHOLD`, rating forced to 10 / lowest frequency) |
+
+### GPU Power Regulation (NVIDIA GPUs only)
+
+GPU power regulation is independent and controlled via:
+
+```ini
+[FEATURES]
+ENABLE_GPU_POWER = yes
+```
+
+When enabled, the system monitors temperature and:
+- **Below threshold**: GPUs run at full power
+- **Above threshold**: GPU power is limited progressively to cool the system
+
+This is particularly useful in dense compute environments where GPU thermal output can impact overall system cooling.
 
 `control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
 
@@ -66,7 +83,105 @@ The `[MODE]` section is syntactic sugar for common configurations. Under the hoo
 
 This design lets you start with a simple preset and later fine-tune individual flags if needed.
 
-### Temperature source ("bring your own reader")
+---
+
+## Installation
+
+Clone the repository first:
+```bash
+git clone git@github.com:CESNET/hpc_eff.git
+cd hpc_eff
+```
+
+Then build and install using the packaging for your distribution.
+
+### Option A — RPM (Fedora / RHEL / Rocky)
+
+```bash
+# dependencies (kernel-tools provides cpupower for setting CPU frequency)
+sudo dnf install ipmitool make kernel-tools rpm-build rpmdevtools -y
+
+# optional: for GPU power regulation (NVIDIA GPUs)
+sudo dnf install nvidia-driver -y
+
+# build and install
+make
+```
+
+### Option B — DEB (Debian / Ubuntu)
+
+```bash
+# build dependencies
+sudo apt update
+sudo apt install build-essential devscripts debhelper dh-make dh-python python3-all python3-setuptools fakeroot
+# runtime dependencies
+sudo apt install ipmitool cpufrequtils python3-numpy python3-requests
+
+# optional: for GPU power regulation (NVIDIA GPUs)
+sudo apt install nvidia-driver-dkms -y
+
+# build the package (recommended)
+make deb
+
+# or manually:
+# dpkg-buildpackage -us -uc
+
+# install it
+sudo dpkg -i ../hpc-eff_*.deb
+# fix any missing dependencies if needed
+sudo apt-get install -f
+```
+
+To clean up / remove the DEB package:
+```bash
+sudo dpkg -r hpc-eff
+# or, to remove config files too:
+sudo dpkg --purge hpc-eff
+```
+
+**Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu — no conflicts.
+
+### After install (all distributions)
+
+1. The package installs `/etc/hpc_eff/config.ini` from the example. If the file is missing, copy it first:
+    ```bash
+    sudo cp /etc/hpc_eff/config.ini.example /etc/hpc_eff/config.ini
+    ```
+2. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
+    ```bash
+    sudo vi /etc/hpc_eff/config.ini
+    ```
+    **Optional**: Enable GPU power regulation if you have NVIDIA GPUs by adding `ENABLE_GPU_POWER = yes` under `[FEATURES]`.
+
+3. Test the executable:
+    ```bash
+    sudo hpc-eff
+    ```
+4. Enable or disable the system cronjob using command-line switches:
+    ```bash
+    hpc-eff --enable
+    hpc-eff --disable
+    ```
+    By default, the cronjob runs every 10 minutes and is installed at `/etc/cron.d/hpc-eff`.
+    You can customize the path and interval:
+    ```bash
+    hpc-eff --enable --cron-path /custom/path --cron-interval 5
+    ```
+5. To read from the created database:
+    ```bash
+    sudo cp /var/lib/hpc_eff/history.db ~/history.db
+    sqlite3 ~/history.db
+    ```
+    Inspect tables and data:
+    ```
+    .tables
+    .schema cpu_settings_log
+    SELECT * FROM cpu_settings_log LIMIT 10;
+    ```
+
+---
+
+## Temperature source ("bring your own reader")
 
 The temperature reading is pluggable via `[TEMPERATURE_SOURCE]`:
 
@@ -155,90 +270,3 @@ db_path = /var/lib/hpc_eff/history.db
 state_json_path = /var/lib/hpc_eff/state.json
 history_length = 10
 ```
-
----
-
-## Installation
-
-Clone the repository first:
-```bash
-git clone git@github.com:CESNET/hpc_eff.git
-cd hpc_eff
-```
-
-Then build and install using the packaging for your distribution.
-
-### Option A — RPM (Fedora / RHEL / Rocky)
-
-```bash
-# dependencies (kernel-tools provides cpupower for setting CPU frequency)
-sudo dnf install ipmitool make kernel-tools rpm-build rpmdevtools -y
-# build and install
-make
-```
-
-### Option B — DEB (Debian / Ubuntu)
-
-```bash
-# build dependencies
-sudo apt update
-sudo apt install build-essential devscripts debhelper dh-make dh-python python3-all python3-setuptools fakeroot
-# runtime dependencies
-sudo apt install ipmitool cpufrequtils python3-numpy python3-requests
-
-# build the package (recommended)
-make deb
-
-# or manually:
-# dpkg-buildpackage -us -uc
-
-# install it
-sudo dpkg -i ../hpc-eff_*.deb
-# fix any missing dependencies if needed
-sudo apt-get install -f
-```
-
-To clean up / remove the DEB package:
-```bash
-sudo dpkg -r hpc-eff
-# or, to remove config files too:
-sudo dpkg --purge hpc-eff
-```
-
-**Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu — no conflicts.
-
-### After install (all distributions)
-
-1. The package installs `/etc/hpc_eff/config.ini` from the example. If the file is missing, copy it first:
-    ```bash
-    sudo cp /etc/hpc_eff/config.ini.example /etc/hpc_eff/config.ini
-    ```
-2. Configure with your API key from [nowtricity](https://www.nowtricity.com/):
-    ```bash
-    sudo vi /etc/hpc_eff/config.ini
-    ```
-3. Test the executable:
-    ```bash
-    sudo hpc-eff
-    ```
-4. Enable or disable the system cronjob using command-line switches:
-    ```bash
-    hpc-eff --enable
-    hpc-eff --disable
-    ```
-    By default, the cronjob runs every 10 minutes and is installed at `/etc/cron.d/hpc-eff`.
-    You can customize the path and interval:
-    ```bash
-    hpc-eff --enable --cron-path /custom/path --cron-interval 5
-    ```
-5. To read from the created database:
-    ```bash
-    sudo cp /var/lib/hpc_eff/history.db ~/history.db
-    sqlite3 ~/history.db
-    ```
-    Inspect tables and data:
-    ```
-    .tables
-    .schema cpu_settings_log
-    SELECT * FROM cpu_settings_log LIMIT 10;
-    ```

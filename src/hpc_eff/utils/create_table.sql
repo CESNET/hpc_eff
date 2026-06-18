@@ -15,5 +15,11 @@ CREATE TABLE IF NOT EXISTS cpu_settings_log (
     rating INTEGER,
     rating_price INTEGER,
     rating_co2 INTEGER,
-    temperature REAL
+    temperature REAL,
+    gpu_power_limit REAL,
+    gpu_target_power REAL,
+    gpu_state TEXT,
+    gpu_count INTEGER,
+    gpu_changed INTEGER,
+    gpu_success INTEGER
 );
