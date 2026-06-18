@@ -9,11 +9,15 @@ from .utils.create_log_db import create_log_db
 from .utils.controller import run_evaluation
 from .utils.cron_control import enable_cron, disable_cron
 
-# Convenience presets that map [MODE] control_mode to the [FEATURES] flags.
+# [MODE] control_mode is the SINGLE user-facing switch. It expands into the
+# internal regulator flags below (the user never sets these directly):
+#   temperature -> CPU thermal control + NVIDIA GPU power regulation
+#   co2         -> CPU price/CO2 frequency control only
+# CPU regulation is mutually exclusive (temperature OR price), so a mode can
+# never enable both CPU regulators at once.
 CONTROL_MODE_PRESETS = {
-    "temperature": {"ENABLE_CPU_THERMO": "yes", "ENABLE_SET_CPU": "no"},
-    "co2":         {"ENABLE_CPU_THERMO": "no",  "ENABLE_SET_CPU": "yes"},
-    "both":        {"ENABLE_CPU_THERMO": "yes", "ENABLE_SET_CPU": "yes"},
+    "temperature": {"ENABLE_TEMP_CPU": "yes", "ENABLE_PRICE_CPU": "no", "ENABLE_TEMP_GPU": "yes"},
+    "co2":         {"ENABLE_TEMP_CPU": "no",  "ENABLE_PRICE_CPU": "yes", "ENABLE_TEMP_GPU": "no"},
 }
 
 
@@ -57,21 +61,23 @@ def debug_log(message):
         print(f"[DEBUG] {message}")
 
 def resolve_control_mode(config):
-    """Resolve the [MODE] control_mode preset into [FEATURES] flags.
+    """Expand [MODE] control_mode into the internal regulator flags.
 
-    When [MODE] control_mode is set (temperature|co2|both) it *drives* the
-    [FEATURES] flags, overriding any manual values. When [MODE] is absent or
-    the value is unknown, the manual [FEATURES] flags are used unchanged
-    (backward-compatible / power-user path).
+    control_mode is the only user-facing switch (temperature|co2). It is
+    required: a missing or unknown value aborts the run rather than silently
+    doing nothing. The expanded flags are written to an internal [FEATURES]
+    section consumed by the controller.
     """
     mode = config.get("MODE", "control_mode", fallback=None)
-    if not mode:
-        return
-    mode = mode.strip().lower()
+    if mode:
+        mode = mode.strip().lower()
     preset = CONTROL_MODE_PRESETS.get(mode)
     if preset is None:
-        debug_log(f"Unknown control_mode '{mode}'; using [FEATURES] flags as-is")
-        return
+        valid = "|".join(CONTROL_MODE_PRESETS)
+        sys.exit(
+            f"Config error: [MODE] control_mode must be one of: {valid} "
+            f"(got {mode!r})."
+        )
     if not config.has_section("FEATURES"):
         config.add_section("FEATURES")
     for key, value in preset.items():
@@ -108,7 +114,7 @@ def main():
             raise
         return
 
-    # Resolve [MODE] preset into [FEATURES] flags, then delegate to controller
+    # Expand [MODE] control_mode into internal flags, then delegate
     resolve_control_mode(config)
     run_evaluation(conn, config, static_context, debug_log)
 

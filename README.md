@@ -95,7 +95,7 @@ sudo dpkg --purge hpc-eff
     ```bash
     sudo vi /etc/hpc_eff/config.ini
     ```
-    **Optional**: Enable GPU power regulation if you have NVIDIA GPUs by adding `ENABLE_GPU_POWER = yes` under `[FEATURES]`.
+    Set `control_mode` under `[MODE]` to either `co2` or `temperature` (see [Regulation modes](#regulation-modes) below). NVIDIA GPU power regulation is included automatically in `temperature` mode.
 
 3. Test the executable:
     ```bash
@@ -136,7 +136,7 @@ The simplest way to choose CPU regulators is the `[MODE]` preset:
 
 ```ini
 [MODE]
-# temperature | co2 | both
+# temperature | co2
 control_mode = co2
 ```
 
@@ -144,36 +144,15 @@ control_mode = co2
 |------|-------------|----------|
 | `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
 | `temperature` | Temperature regulator only | Thermal management without energy considerations |
-| `both` | Both regulators active | Maximum efficiency: temperature acts as a hard limit (if reading exceeds `[TEMPERATURE] THRESHOLD`, rating forced to 10 / lowest frequency) |
 
-### GPU Power Regulation (NVIDIA GPUs only)
+> `control_mode` is the **single switch** for the whole node — there are no separate feature flags to set. It is required; an unset or unknown value aborts the run.
 
-GPU power regulation is independent and controlled via:
+What each mode turns on under the hood:
 
-```ini
-[FEATURES]
-ENABLE_GPU_POWER = yes
-```
+- `control_mode = temperature` → CPU thermal control (`[CPU_THERMO]`) **+** NVIDIA GPU power regulation (`[GPU_POWER]`)
+- `control_mode = co2` → CPU price/CO₂ frequency control only (rating 1–10 → max frequency)
 
-### Manual feature control
-
-`control_mode` simply drives the underlying `[FEATURES]` flags. Power users can omit `[MODE]` and set the flags directly instead (when `[MODE]` is present it overrides them):
-
-```ini
-[FEATURES]
-ENABLE_SET_CPU = yes      # price/CO₂ regulator
-ENABLE_CPU_THERMO = no    # temperature regulator
-```
-
-### Configuration mode presets
-
-The `[MODE]` section is syntactic sugar for common configurations. Under the hood:
-
-- `control_mode = co2` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=no`
-- `control_mode = temperature` → `ENABLE_SET_CPU=no`, `ENABLE_CPU_THERMO=yes`
-- `control_mode = both` → `ENABLE_SET_CPU=yes`, `ENABLE_CPU_THERMO=yes`
-
-This design lets you start with a simple preset and later fine-tune individual flags if needed.
+CPU regulation is **mutually exclusive** by design — the CPU is driven by *either* temperature *or* price/CO₂, never both — so the two modes never overlap. GPU power regulation rides along with `temperature` mode (NVIDIA GPUs only; safely no-ops on nodes without them).
 
 ---
 

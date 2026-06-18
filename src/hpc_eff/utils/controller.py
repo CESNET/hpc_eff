@@ -4,13 +4,15 @@ Moves logic out of `main.py`: gathers inputs (price, power, freq, CO2,
 temperature), computes ratings and log context, and conditionally calls the
 terminal actions `apply_cpu_thermo` and `set_cpu_freq` based on config flags.
 
-Two independent feature flags drive the pipeline (see [FEATURES] in config):
-- ENABLE_SET_CPU   : price/CO2 -> rating -> max-frequency cap
-- ENABLE_CPU_THERMO: temperature -> hysteresis-based max-frequency control
-- ENABLE_GPU_POWER : temperature -> power limiting for NVIDIA GPUs (NEW)
+Internal regulator flags drive the pipeline. These live in an internal
+[FEATURES] section that `main.resolve_control_mode` populates from the single
+user-facing `[MODE] control_mode` switch (the user never sets them directly):
+- ENABLE_PRICE_CPU : price/CO2 -> rating -> max-frequency cap
+- ENABLE_TEMP_CPU  : temperature -> hysteresis-based max-frequency control
+- ENABLE_TEMP_GPU  : temperature -> power limiting for NVIDIA GPUs
 
-Both may run together; when both are on, temperature acts as a hard limit:
-exceeding TEMPERATURE/THRESHOLD forces the rating to 10 (lowest frequency).
+control_mode=co2 sets PRICE_CPU; control_mode=temperature sets TEMP_CPU +
+TEMP_GPU. CPU regulation is mutually exclusive, so the two never run together.
 """
 
 import json
@@ -60,17 +62,18 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         static_context: dict with static values (score_name, score_value)
         debug_log: callable for debug logging
 
-    Reads the config flags `FEATURES/ENABLE_CPU_THERMO` and
-    `FEATURES/ENABLE_SET_CPU` to decide which final actions to call. Data that
-    a disabled action would need is not gathered, to save work.
+    Reads the internal flags `FEATURES/ENABLE_TEMP_CPU` and
+    `FEATURES/ENABLE_PRICE_CPU` (set from `[MODE] control_mode`) to decide which
+    final action to call (they are mutually exclusive). Data that a disabled
+    action would need is not gathered, to save work.
     """
     debug_log("Controller: starting evaluation")
 
     # Determine which final actions are enabled; avoid gathering data
     # that we don't need when the corresponding action is disabled.
-    enable_thermo = config.getboolean("FEATURES", "ENABLE_CPU_THERMO", fallback=True)
-    enable_set_cpu = config.getboolean("FEATURES", "ENABLE_SET_CPU", fallback=True)
-    enable_gpu = config.getboolean("FEATURES", "ENABLE_GPU_POWER", fallback=False)
+    enable_temp_cpu = config.getboolean("FEATURES", "ENABLE_TEMP_CPU", fallback=True)
+    enable_price_cpu = config.getboolean("FEATURES", "ENABLE_PRICE_CPU", fallback=True)
+    enable_temp_gpu = config.getboolean("FEATURES", "ENABLE_TEMP_GPU", fallback=False)
 
     # initialize placeholders
     price = power_w = cpu_freq_current = temperature = None
@@ -88,8 +91,8 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     # Build base log_context with static info
     log_context = static_context.copy()
 
-    # If set_cpu is enabled we need price/history/CO2/power/freq to compute rating
-    if enable_set_cpu:
+    # If the price regulator is enabled we need price/history/CO2/power/freq to compute rating
+    if enable_price_cpu:
         # Read current electricity price (CZK/MWh)
         try:
             price = get_current_energy_price()
@@ -132,7 +135,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         except Exception as e:
             debug_log(f"Error fetching classify price and rating: {e}")
 
-        # Fetch CO2 values and grading (only if set_cpu needs them for logging)
+        # Fetch CO2 values and grading (only if the price regulator needs them for logging)
         try:
             historical_values, current_value, median_value, grade = co2_value({
                 'User-Agent': config['API']['USER_AGENT'],
@@ -180,7 +183,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
 
     # Apply temperature-based CPU frequency control
     thermo_freq_limit = None
-    if enable_thermo:
+    if enable_temp_cpu:
         try:
             res = apply_cpu_thermo(conn, log_context, config)
             temperature = res.get("temperature")
@@ -206,17 +209,13 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     else:
         debug_log("CPU thermo disabled; skipping")
 
-    # Check temperature threshold and possibly adjust rating (temperature wins)
-    temp_threshold = config.getfloat("TEMPERATURE", "THRESHOLD", fallback=80)
-    if temperature is not None and temperature > temp_threshold:
-        debug_log(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
-        rating = 10
-        log_context["rating"] = rating
-        temp_notes.append(f"Temperature {temperature} exceeds threshold {temp_threshold}. Forcing lowest frequency.")
+    # NOTE: CPU regulation is mutually exclusive (temperature OR price), enforced
+    # in main.validate_features. Price mode does not read temperature and has no
+    # thermal cutoff here; temperature mode handles heat via [CPU_THERMO] bands.
 
     # Set CPU max frequency based on rating
     selected_freq = None
-    if enable_set_cpu:
+    if enable_price_cpu:
         debug_log(f"Current rating: {rating}")
         selected_freq = set_cpu_freq(rating, conn, config, **log_context)
         if selected_freq:
@@ -230,15 +229,15 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     }
 
     # Temperature/thermo fields only if the thermo action is enabled
-    if enable_thermo:
+    if enable_temp_cpu:
         json_entry.update({
             "temperature": temperature,
             "thermo_freq_limit": thermo_freq_limit,
             "action_temp": "; ".join(temp_notes),
         })
 
-    # Price/rating/frequency fields only if set_cpu is enabled
-    if enable_set_cpu:
+    # Price/rating/frequency fields only if the price regulator is enabled
+    if enable_price_cpu:
         json_entry.update({
             "rating": rating,
             "rating_price": rating_price,
@@ -254,7 +253,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         })
     
     # GPU Power Regulation (MUST run BEFORE json_entry.update for GPU fields)
-    if enable_gpu:
+    if enable_temp_gpu:
         try:
             from .gpu_power import regulate_gpus as gpu_regulate
             results = gpu_regulate(conn, config, debug_log)
@@ -268,10 +267,10 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
             debug_log(f"GPU Power: error during regulation - {e}")
             debug_log(f"GPU Power: traceback: {traceback.format_exc()}")
     else:
-        debug_log("GPU Power: disabled (FEATURES/ENABLE_GPU_POWER=no)")
+        debug_log("GPU Power: disabled (FEATURES/ENABLE_TEMP_GPU=no)")
     
     # GPU power fields only if GPU power is enabled AND we have a result
-    if enable_gpu and gpu_power_result:
+    if enable_temp_gpu and gpu_power_result:
         gpu_fields = {
             "gpu_power_limit": gpu_power_result.get("power_limit"),
             "gpu_target_power": gpu_power_result.get("target_power"),

@@ -16,26 +16,15 @@ state_json_path=/var/lib/hpc_eff/state.json
 history_length=1000
 
 [MODE]
-# Convenience preset. When set, it DRIVES the [FEATURES] flags below,
-# overriding their manual values:
-#   temperature -> ENABLE_CPU_THERMO=yes, ENABLE_SET_CPU=no
-#   co2         -> ENABLE_CPU_THERMO=no,  ENABLE_SET_CPU=yes
-#   both        -> ENABLE_CPU_THERMO=yes, ENABLE_SET_CPU=yes  (temperature wins)
-# Remove/comment this (or use an unknown value) to control the regulators
-# manually via [FEATURES] instead.
+# The SINGLE switch that selects how the node is regulated. Required.
+#
+#   temperature -> CPU thermal control (see [CPU_THERMO]) + NVIDIA GPU power
+#                  regulation (see [GPU_POWER])
+#   co2         -> CPU price/CO2 frequency control only (rating 1-10 -> max freq)
+#
+# CPU regulation is mutually exclusive (temperature OR price), so the two modes
+# never overlap. An unset or unknown value aborts the run.
 control_mode=co2
-
-[FEATURES]
-# Independent regulator switches. Used as-is when [MODE] control_mode is unset;
-# otherwise the [MODE] preset above overrides them.
-#   ENABLE_SET_CPU    : price/CO2 -> rating (1-10) -> CPU max-frequency cap
-#   ENABLE_CPU_THERMO : temperature -> hysteresis-based CPU max-frequency control
-#   ENABLE_GPU_POWER  : temperature -> power limiting for NVIDIA GPUs (NEW)
-# When both CPU regulators are enabled, temperature acts as a hard limit: exceeding
-# [TEMPERATURE] THRESHOLD forces the rating to 10 (lowest frequency).
-ENABLE_SET_CPU=yes
-ENABLE_CPU_THERMO=no
-ENABLE_GPU_POWER=no
 
 [frequency_tables]
 # Per-CPU-model frequency tables (MHz), highest first. Used by the price/CO2
