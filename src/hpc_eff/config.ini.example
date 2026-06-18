@@ -30,10 +30,12 @@ control_mode=co2
 # otherwise the [MODE] preset above overrides them.
 #   ENABLE_SET_CPU    : price/CO2 -> rating (1-10) -> CPU max-frequency cap
 #   ENABLE_CPU_THERMO : temperature -> hysteresis-based CPU max-frequency control
-# When both are enabled, temperature acts as a hard limit: exceeding
+#   ENABLE_GPU_POWER  : temperature -> power limiting for NVIDIA GPUs (NEW)
+# When both CPU regulators are enabled, temperature acts as a hard limit: exceeding
 # [TEMPERATURE] THRESHOLD forces the rating to 10 (lowest frequency).
 ENABLE_SET_CPU=yes
 ENABLE_CPU_THERMO=no
+ENABLE_GPU_POWER=no
 
 [frequency_tables]
 # Per-CPU-model frequency tables (MHz), highest first. Used by the price/CO2
@@ -88,6 +90,41 @@ LOW_FREQUENCY=1.50GHz
 # Enable DB logging of thermal actions (1) and optional Slack webhook.
 ENABLE_LOG=1
 #SLACK_URL=
+
+# ============================================================================
+# GPU POWER REGULATION (NVIDIA GPUs only)
+# ============================================================================
+
+[GPU_POWER]
+# Uses GLOBAL ambient temperature from [TEMPERATURE_SOURCE] (same as CPU_THERMO)
+# All GPUs get the SAME power limit based on this temperature.
+
+# Temperature thresholds (degrees Celsius)
+# MID_LIMIT: Start reducing power when temp exceeds this (default: 70°C)
+# HIGH_LIMIT: Aggressive power reduction when temp exceeds this (default: 80°C)
+MID_LIMIT=70
+HIGH_LIMIT=80
+
+# Power limits - can be absolute (Watts) or percentage of max (%)
+# HIGH_POWER: Normal operation (below MID_LIMIT) - default: 100%
+# MID_POWER: Reduced power (between MID_LIMIT and HIGH_LIMIT) - default: 70%
+# LOW_POWER: Minimum power (above HIGH_LIMIT) - default: 40%
+#
+# Examples for different GPU types:
+#   A100/H100 (absolute): HIGH_POWER=300, MID_POWER=200, LOW_POWER=100
+#   A40/RTX (percentage): HIGH_POWER=100%, MID_POWER=70%, LOW_POWER=40%
+HIGH_POWER=100%
+MID_POWER=70%
+LOW_POWER=40%
+
+# Enable database logging (1) or disable (0)
+ENABLE_LOG=1
+
+# Optional Slack webhook for power change notifications
+# SLACK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
+
+# Custom database path (optional, defaults to /var/lib/hpc_eff/gpu_power.db)
+# DB_PATH=/var/lib/hpc_eff/gpu_power.db
 
 # [aggregation] is reserved and NOT currently read by the code. It is kept here
 # for reference; it was intended for a future weighted price+CO2 rating.

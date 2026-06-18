@@ -7,6 +7,7 @@ terminal actions `apply_cpu_thermo` and `set_cpu_freq` based on config flags.
 Two independent feature flags drive the pipeline (see [FEATURES] in config):
 - ENABLE_SET_CPU   : price/CO2 -> rating -> max-frequency cap
 - ENABLE_CPU_THERMO: temperature -> hysteresis-based max-frequency control
+- ENABLE_GPU_POWER : temperature -> power limiting for NVIDIA GPUs (NEW)
 
 Both may run together; when both are on, temperature acts as a hard limit:
 exceeding TEMPERATURE/THRESHOLD forces the rating to 10 (lowest frequency).
@@ -69,6 +70,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     # that we don't need when the corresponding action is disabled.
     enable_thermo = config.getboolean("FEATURES", "ENABLE_CPU_THERMO", fallback=True)
     enable_set_cpu = config.getboolean("FEATURES", "ENABLE_SET_CPU", fallback=True)
+    enable_gpu = config.getboolean("FEATURES", "ENABLE_GPU_POWER", fallback=False)
 
     # initialize placeholders
     price = power_w = cpu_freq_current = temperature = None
@@ -79,6 +81,9 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     current_value = median_value = grade = None
     price_notes = []
     temp_notes = []
+    
+    # GPU power tracking
+    gpu_power_result = None
 
     # Build base log_context with static info
     log_context = static_context.copy()
@@ -247,10 +252,38 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
             "power_w": power_w,
             "cpu_freq_current": cpu_freq_current,
         })
+    
+    # GPU Power Regulation (MUST run BEFORE json_entry.update for GPU fields)
+    if enable_gpu:
+        try:
+            from .gpu_power import regulate_gpus as gpu_regulate
+            results = gpu_regulate(conn, config, debug_log)
+            debug_log(f"GPU Power: finished - {len(results)} GPUs processed")
+            if results and len(results) > 0:
+                gpu_power_result = results[0]  # Take first (and only) result
+        except ImportError as e:
+            debug_log(f"GPU Power: module not found - {e}")
+        except Exception as e:
+            import traceback
+            debug_log(f"GPU Power: error during regulation - {e}")
+            debug_log(f"GPU Power: traceback: {traceback.format_exc()}")
+    else:
+        debug_log("GPU Power: disabled (FEATURES/ENABLE_GPU_POWER=no)")
+    
+    # GPU power fields only if GPU power is enabled AND we have a result
+    if enable_gpu and gpu_power_result:
+        json_entry.update({
+            "gpu_power_limit": gpu_power_result.get("power_limit"),
+            "gpu_target_power": gpu_power_result.get("target_power"),
+            "gpu_state": gpu_power_result.get("state"),
+            "gpu_changed": gpu_power_result.get("changed", False),
+            "gpu_success": gpu_power_result.get("success", False),
+            "gpu_count": gpu_power_result.get("gpu_count"),
+        })
 
     # Update state JSON
     state_file_path = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")
     history_length = config.getint("logging", "history_length", fallback=10)
     update_state_json(json_entry, state_file_path, history_length, static_context, debug_log)
-
+    
     debug_log("Controller: evaluation finished")
