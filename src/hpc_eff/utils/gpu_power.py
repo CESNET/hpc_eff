@@ -10,17 +10,17 @@ Features:
 - All GPUs get same power limit
 - 3 power states (HIGH/MID/LOW) with hysteresis
 - Configurable via [GPU_POWER] section
-- SQLite logging to gpu_power.db
 - Optional Slack notifications
+- Returns regulation results; DB logging is owned by the controller (unified
+  hpc_eff_log row alongside CPU data)
 
 Usage (from controller.py):
     from .gpu_power import regulate_gpus
-    regulate_gpus(conn, config, debug_log)
+    results = regulate_gpus(conn, config, debug_log)
 """
 
 import socket
 import subprocess
-import time
 from typing import Optional, List, Dict, Any, Callable
 
 # Optional imports
@@ -176,7 +176,6 @@ class GPUPowerRegulator:
         self.low_power = config.get(self.section, "LOW_POWER", fallback="40%", raw=True)
         
         # Optional features
-        self.enable_log = config.getint(self.section, "ENABLE_LOG", fallback=1)
         self.slack_url = config.get(self.section, "SLACK_URL", fallback=None)
         
         # State tracking for hysteresis
@@ -360,17 +359,17 @@ class GPUPowerRegulator:
 # Public API
 # ============================================================================
 
-def regulate_gpus(conn, config, debug_log: Callable) -> List[Dict[str, Any]]:
+def regulate_gpus(config, debug_log: Callable) -> List[Dict[str, Any]]:
     """
     Main entry point for GPU power regulation.
-    
+
     Args:
-        conn: SQLite connection (for logging)
         config: configparser.ConfigParser instance
         debug_log: Debug logging function
-    
+
     Returns:
-        List of regulation results (one per GPU, but all same in simplified version)
+        List of regulation results (one per GPU, but all same in simplified
+        version). DB logging is handled by the controller, not here.
     """
     # Import here to avoid circular dependencies
     from .temperature_reader import read_temperature
@@ -386,58 +385,10 @@ def regulate_gpus(conn, config, debug_log: Callable) -> List[Dict[str, Any]]:
     try:
         regulator = GPUPowerRegulator(config)
         result = regulator.regulate()
-        
-        # Log to database if enabled
-        if result.get("success") and config.getint("GPU_POWER", "ENABLE_LOG", fallback=1):
-            _log_to_db(conn, result, config)
-        
+
+        # Database logging now handled by controller (unified hpc_eff_log table)
         return [result]
         
     except Exception as e:
         debug_log(f"GPU Power: Exception - {e}")
         return [{"success": False, "error": str(e)}]
-
-
-def _log_to_db(conn, result: Dict[str, Any], config):
-    """Log GPU power regulation to SQLite database."""
-    if not HAS_SQLITE or conn is None:
-        return
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Ensure table exists
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gpu_power_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                hostname TEXT,
-                temperature REAL,
-                power_limit INTEGER,
-                target_power INTEGER,
-                state TEXT,
-                gpu_count INTEGER,
-                changed INTEGER
-            )
-        """)
-        conn.commit()
-        
-        # Insert log entry
-        cursor.execute("""
-            INSERT INTO gpu_power_log 
-            (timestamp, hostname, temperature, power_limit, target_power, state, gpu_count, changed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            time.strftime("%Y-%m-%d %H:%M:%S"),
-            socket.gethostname().split('.')[0],
-            result.get("temperature"),
-            result.get("power_limit"),
-            result.get("target_power"),
-            result.get("state"),
-            result.get("gpu_count"),
-            1 if result.get("changed") else 0,
-        ))
-        conn.commit()
-        
-    except Exception as e:
-        logger.error(f"GPU Power: DB logging failed: {e}")

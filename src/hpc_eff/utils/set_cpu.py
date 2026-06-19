@@ -84,16 +84,15 @@ def calculate_selected_freq(number, freq_list):
     selected_freq_mhz = sorted(freq_list, reverse=True)[index]
     return selected_freq_mhz * 1000  # returns in kHz
 
-def set_cpu_freq(number, conn=None, config=None, **context):
+def set_cpu_freq(number, config=None, **context):
     """
     Selects CPU frequency based on input number (1-10) and available frequencies.
 
     Parameters:
     - number (int): Value from 1 to 10.
-    - conn: SQLite connection for logging.
     - config: configparser.ConfigParser instance. Required unless a precomputed
       'freq_max' (kHz) is supplied in context as an override.
-    - context: Full log context.
+    - context: Optional extra context (e.g. a precomputed 'freq_max' override).
 
     Rules:
     - 1 (cheapest) maps to the highest available frequency.
@@ -101,7 +100,9 @@ def set_cpu_freq(number, conn=None, config=None, **context):
     - Values in between are scaled dynamically.
     - Uses cpupower frequency-set to set max frequency.
 
-    Returns the selected max frequency in kHz, or None on failure.
+    Performs only the action; DB logging is owned by the controller (one
+    unified row per evaluation). Returns the selected max frequency in kHz,
+    or None on failure.
     """
     try:
         if config is not None:
@@ -118,10 +119,6 @@ def set_cpu_freq(number, conn=None, config=None, **context):
         if not set_max_freq_khz(selected_freq_khz):
             return None
 
-        if conn:
-            # Update context with freq_max if not already there
-            context.setdefault('freq_max', selected_freq_khz)
-            log_setting(conn, freq_min=0, **context)
         return selected_freq_khz
 
     except ValueError as e:
@@ -135,7 +132,7 @@ def log_setting(conn, **kwargs):
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO cpu_settings_log
+            INSERT INTO hpc_eff_log
             (timestamp, hostname, freq_min, freq_max, score_name, score_value, price,
              co2_current, co2_median, co2_grade, power_w, cpu_freq_current, rating,
              rating_price, rating_co2, temperature, gpu_power_limit, gpu_target_power,

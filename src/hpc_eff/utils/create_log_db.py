@@ -3,7 +3,22 @@ from pathlib import Path
 
 _SQL_FILE = Path(__file__).parent / "create_table.sql"
 
-_TABLE = "cpu_settings_log"
+_TABLE = "hpc_eff_log"
+_LEGACY_TABLE = "cpu_settings_log"
+
+
+def _rename_legacy_table(conn: sqlite3.Connection) -> None:
+    """Preserve history from the old table name by renaming it in place.
+
+    Earlier versions logged to ``cpu_settings_log``. The schema is identical
+    (GPU columns included), so if only the legacy table exists we rename it to
+    ``hpc_eff_log`` rather than orphaning its rows in a stale table.
+    """
+    names = {row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    )}
+    if _LEGACY_TABLE in names and _TABLE not in names:
+        conn.execute(f"ALTER TABLE {_LEGACY_TABLE} RENAME TO {_TABLE}")
 
 
 def _expected_columns(sql_script: str) -> list[tuple[str, str]]:
@@ -24,7 +39,7 @@ def _expected_columns(sql_script: str) -> list[tuple[str, str]]:
 
 
 def _migrate_columns(conn: sqlite3.Connection, sql_script: str) -> None:
-    """Add any expected columns missing from an existing cpu_settings_log table."""
+    """Add any expected columns missing from an existing hpc_eff_log table."""
     existing = {row[1] for row in conn.execute(f"PRAGMA table_info({_TABLE})")}
     if not existing:
         # Table doesn't exist yet; the CREATE TABLE statement handles it.
@@ -46,7 +61,8 @@ def create_log_db(db_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA journal_mode=WAL;")
-    conn.executescript(sql_script)
+    _rename_legacy_table(conn)        # preserve history from the old table name
+    conn.executescript(sql_script)    # create hpc_eff_log if still missing
     _migrate_columns(conn, sql_script)
     conn.commit()
     conn.close()

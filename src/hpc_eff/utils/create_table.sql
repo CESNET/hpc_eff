@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS cpu_settings_log (
+CREATE TABLE IF NOT EXISTS hpc_eff_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL,
     hostname TEXT NOT NULL,

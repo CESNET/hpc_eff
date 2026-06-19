@@ -76,8 +76,7 @@ HIGH_FREQUENCY=3.10GHz
 MID_FREQUENCY=2.30GHz
 LOW_FREQUENCY=1.50GHz
 
-# Enable DB logging of thermal actions (1) and optional Slack webhook.
-ENABLE_LOG=1
+# Optional Slack webhook for thermal change notifications.
 #SLACK_URL=
 
 # ============================================================================
@@ -106,14 +105,11 @@ HIGH_POWER=100%
 MID_POWER=70%
 LOW_POWER=40%
 
-# Enable database logging (1) or disable (0)
-ENABLE_LOG=1
+# GPU regulation is logged together with CPU data in the unified hpc_eff_log
+# table of [logging] db_path -- there is no separate GPU database.
 
 # Optional Slack webhook for power change notifications
 # SLACK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
-
-# Custom database path (optional, defaults to /var/lib/hpc_eff/gpu_power.db)
-# DB_PATH=/var/lib/hpc_eff/gpu_power.db
 
 # [aggregation] is reserved and NOT currently read by the code. It is kept here
 # for reference; it was intended for a future weighted price+CO2 rating.

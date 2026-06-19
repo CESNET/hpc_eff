@@ -24,7 +24,7 @@ from .power_reader import get_power_reading
 from .frequency_reader import get_cpu_frequency
 from .co2_value import co2_value
 from .cpu_thermo import apply_cpu_thermo
-from .set_cpu import set_cpu_freq
+from .set_cpu import set_cpu_freq, log_setting
 
 def update_state_json(new_entry, state_file_path, history_length, static_context, debug_log):
     """Update the JSON state file with history."""
@@ -185,9 +185,13 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     thermo_freq_limit = None
     if enable_temp_cpu:
         try:
-            res = apply_cpu_thermo(conn, log_context, config)
+            res = apply_cpu_thermo(config)
             temperature = res.get("temperature")
             log_context["temperature"] = temperature  # update with real reading
+            # Record the resulting max-frequency cap for the unified DB row
+            if res.get("target_khz") is not None:
+                log_context["freq_min"] = 0
+                log_context["freq_max"] = res.get("target_khz")
 
             status_msg = f"Temp {temperature} C"
             if temperature is not None and old_temp is not None:
@@ -217,8 +221,11 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     selected_freq = None
     if enable_price_cpu:
         debug_log(f"Current rating: {rating}")
-        selected_freq = set_cpu_freq(rating, conn, config, **log_context)
+        selected_freq = set_cpu_freq(rating, config, **log_context)
         if selected_freq:
+            # Record the resulting max-frequency cap for the unified DB row
+            log_context["freq_min"] = 0
+            log_context["freq_max"] = selected_freq
             price_notes.append(f"Rating {rating} set {selected_freq}kHz")
     else:
         debug_log("set_cpu_freq disabled; skipping")
@@ -256,7 +263,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     if enable_temp_gpu:
         try:
             from .gpu_power import regulate_gpus as gpu_regulate
-            results = gpu_regulate(conn, config, debug_log)
+            results = gpu_regulate(config, debug_log)
             debug_log(f"GPU Power: finished - {len(results)} GPUs processed")
             if results and len(results) > 0:
                 gpu_power_result = results[0]  # Take first (and only) result
@@ -281,6 +288,14 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         }
         json_entry.update(gpu_fields)
         log_context.update(gpu_fields)
+
+    # Single unified DB write: one row per evaluation with all CPU + GPU data.
+    # (Action functions no longer log themselves; the controller owns this.)
+    if conn is not None:
+        try:
+            log_setting(conn, **log_context)
+        except Exception as e:
+            debug_log(f"DB log failed: {e}")
 
     # Update state JSON
     state_file_path = config.get("logging", "state_json_path", fallback="/var/lib/hpc_eff/state.json")

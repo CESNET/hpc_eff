@@ -119,8 +119,8 @@ sudo dpkg --purge hpc-eff
     Inspect tables and data:
     ```
     .tables
-    .schema cpu_settings_log
-    SELECT * FROM cpu_settings_log LIMIT 10;
+    .schema hpc_eff_log
+    SELECT * FROM hpc_eff_log LIMIT 10;
     ```
 
 ---
