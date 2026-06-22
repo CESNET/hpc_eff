@@ -85,6 +85,11 @@ sudo dpkg --purge hpc-eff
 
 **Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu — no conflicts.
 
+**Upgrading from an older package:** no manual database steps are needed. On
+first run, `hpc-eff` automatically renames the old `cpu_settings_log` table to
+`hpc_eff_log` and adds the new GPU columns — all existing history is
+preserved in place.
+
 ### After install (all distributions)
 
 1. The package installs `/etc/hpc_eff/config.ini` from the example. If the file is missing, copy it first:
