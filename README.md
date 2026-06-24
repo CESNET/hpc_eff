@@ -25,7 +25,7 @@ It evaluates current energy/thermal conditions, prints debug logs if enabled, an
 10. Apply min and max CPU frequencies based on rating
 11. Regulate GPU power based on temperature (if enabled)
 
-Steps 2–7 run only when the price/CO₂ regulator is enabled, step 9 and 11 run only when their respective regulators are enabled (see **Regulation modes** below) — data that a disabled regulator would need is not gathered.
+Steps 2–7 run only when the price/CO₂ regulator is enabled; steps 9 and 11 run only when their respective regulators are enabled (see [Regulation modes](#regulation-modes) below).
 
 ---
 
@@ -50,6 +50,13 @@ sudo dnf install nvidia-driver -y
 
 # build and install
 make
+```
+
+To clean up / remove the RPM package:
+```bash
+sudo rpm -e hpc_eff
+# or, using the Makefile target:
+make uninstall
 ```
 
 ### Option B — DEB (Debian / Ubuntu)
@@ -83,7 +90,7 @@ sudo dpkg -r hpc-eff
 sudo dpkg --purge hpc-eff
 ```
 
-**Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu — no conflicts.
+**Note:** RPM and DEB targets are independent. Use `make` on RHEL/AlmaLinux, `make deb` on Debian/Ubuntu.
 
 **Upgrading from an older package:** no manual database steps are needed. On
 first run, `hpc-eff` automatically renames the old `cpu_settings_log` table to
@@ -133,9 +140,9 @@ preserved in place.
 ## Regulation modes
 
 Three independent regulators can control system energy:
-- **price/CO₂** → computes a rating (1–10) → caps the CPU max frequency;
-- **temperature (CPU)** → hysteresis-based CPU max-frequency control;
-- **GPU power** → reduces GPU power limit when temperature exceeds threshold.
+- **price/CO₂**: computes a rating (1–10) and caps the CPU max frequency.
+- **temperature (CPU)**: hysteresis-based CPU max-frequency control.
+- **GPU power**: reduces GPU power limit when temperature exceeds threshold.
 
 The simplest way to choose CPU regulators is the `[MODE]` preset:
 
@@ -150,14 +157,14 @@ control_mode = co2
 | `co2` | Price/CO₂ regulator only | Classic energy governor for cost/carbon optimization |
 | `temperature` | Temperature regulator only | Thermal management without energy considerations |
 
-> `control_mode` is the **single switch** for the whole node — there are no separate feature flags to set. It is required; an unset or unknown value aborts the run.
+`control_mode` is the single switch for the whole node — there are no separate feature flags to set. It is required; an unset or unknown value aborts the run.
 
 What each mode turns on under the hood:
 
-- `control_mode = temperature` → CPU thermal control (`[CPU_THERMO]`) **+** NVIDIA GPU power regulation (`[GPU_POWER]`)
+- `control_mode = temperature` → CPU thermal control (`[CPU_THERMO]`) + NVIDIA GPU power regulation (`[GPU_POWER]`)
 - `control_mode = co2` → CPU price/CO₂ frequency control only (rating 1–10 → max frequency)
 
-CPU regulation is **mutually exclusive** by design — the CPU is driven by *either* temperature *or* price/CO₂, never both — so the two modes never overlap. GPU power regulation rides along with `temperature` mode (NVIDIA GPUs only; safely no-ops on nodes without them).
+The CPU is driven by either temperature or price/CO₂, never both. GPU power regulation rides along with `temperature` mode only (NVIDIA GPUs only; safely no-ops on nodes without them).
 
 ---
 

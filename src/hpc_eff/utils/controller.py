@@ -290,7 +290,6 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         log_context.update(gpu_fields)
 
     # Single unified DB write: one row per evaluation with all CPU + GPU data.
-    # (Action functions no longer log themselves; the controller owns this.)
     if conn is not None:
         try:
             log_setting(conn, **log_context)

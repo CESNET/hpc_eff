@@ -8,11 +8,8 @@ _LEGACY_TABLE = "cpu_settings_log"
 
 
 def _rename_legacy_table(conn: sqlite3.Connection) -> None:
-    """Preserve history from the old table name by renaming it in place.
-
-    Earlier versions logged to ``cpu_settings_log``. The schema is identical
-    (GPU columns included), so if only the legacy table exists we rename it to
-    ``hpc_eff_log`` rather than orphaning its rows in a stale table.
+    """Rename the old ``cpu_settings_log`` table to ``hpc_eff_log`` in place,
+    preserving its rows, if the legacy table exists and the new one doesn't.
     """
     names = {row[0] for row in conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
@@ -22,11 +19,8 @@ def _rename_legacy_table(conn: sqlite3.Connection) -> None:
 
 
 def _expected_columns(sql_script: str) -> list[tuple[str, str]]:
-    """Return [(name, type), ...] for the canonical table, as SQLite parses it.
-
-    Builds the table in an in-memory database from the same SQL the real DB
-    uses, then reads it back via PRAGMA. This keeps create_table.sql as the
-    single source of truth -- no column list is duplicated here.
+    """Return [(name, type), ...] for the canonical table by building it in
+    an in-memory DB from create_table.sql and reading it back via PRAGMA.
     """
     mem = sqlite3.connect(":memory:")
     try:
@@ -61,8 +55,8 @@ def create_log_db(db_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA journal_mode=WAL;")
-    _rename_legacy_table(conn)        # preserve history from the old table name
-    conn.executescript(sql_script)    # create hpc_eff_log if still missing
+    _rename_legacy_table(conn)
+    conn.executescript(sql_script)
     _migrate_columns(conn, sql_script)
     conn.commit()
     conn.close()

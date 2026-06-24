@@ -41,6 +41,23 @@ python3 setup.py build
 python3 setup.py install --root=%{buildroot} --prefix=/usr --skip-build --record=INSTALLED_FILES
 install -D -m 644 src/hpc_eff/config.ini.example %{buildroot}/etc/hpc_eff/config.ini
 
+# The setuptools console_scripts launcher resolves its entry point at runtime
+# via importlib.metadata. On Python 3.9 that reader does not reliably parse the
+# legacy .egg-info this build produces, so the generated /usr/bin/hpc-eff fails
+# with StopIteration. Replace it with a thin wrapper that invokes the module
+# directly -- importing hpc_eff.main needs no metadata lookup.
+#
+# TODO: the proper fix is a wheel-based pip install (modern .dist-info reads
+# reliably on every Python). It needs pip + wheel present at build time, which
+# this box lacks, so do it on a hermetic builder and drop this wrapper.
+cat > %{buildroot}/usr/bin/hpc-eff <<'EOF'
+#!/usr/bin/python3
+from hpc_eff.main import main
+if __name__ == "__main__":
+    main()
+EOF
+chmod 755 %{buildroot}/usr/bin/hpc-eff
+
 %files -f INSTALLED_FILES
 %defattr(-,root,root,-)
 %config(noreplace) /etc/hpc_eff/config.ini
