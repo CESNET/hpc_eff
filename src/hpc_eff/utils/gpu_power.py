@@ -239,7 +239,7 @@ class GPUPowerRegulator:
         """Get max power limit from first GPU (assumes all GPUs are same model)."""
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=max_power_limit", "--format=csv,noheader,nounits"],
+                ["nvidia-smi", "--query-gpu=power.max_limit", "--format=csv,noheader,nounits"],
                 capture_output=True,
                 text=True,
                 check=True
