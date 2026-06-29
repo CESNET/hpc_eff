@@ -66,7 +66,7 @@ make uninstall
 sudo apt update
 sudo apt install build-essential devscripts debhelper dh-make dh-python python3-all python3-setuptools fakeroot
 # runtime dependencies
-sudo apt install ipmitool cpufrequtils python3-numpy python3-requests
+sudo apt install ipmitool linux-cpupower python3-numpy python3-requests
 
 # optional: for GPU power regulation (NVIDIA GPUs)
 sudo apt install nvidia-driver-dkms -y
