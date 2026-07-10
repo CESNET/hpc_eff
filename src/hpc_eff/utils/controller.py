@@ -26,6 +26,40 @@ from .co2_value import co2_value
 from .cpu_thermo import apply_cpu_thermo
 from .set_cpu import set_cpu_freq, log_setting
 
+def combine_ratings(rating_price, rating_co2, config, debug_log):
+    """Combine the price and CO2 ratings into the final rating (1-10).
+
+    Controlled by the [aggregation] section:
+    - rating_type=price   : price rating only (default, legacy behaviour)
+    - rating_type=average : weighted average of price and CO2 ratings
+    - rating_type=max     : the worse (higher) of the two ratings
+
+    Falls back to whichever rating is available when the other could not be
+    computed (e.g. CO2 API failure), and to the neutral 5 when neither is.
+    """
+    rating_type = config.get("aggregation", "rating_type", fallback="price")
+
+    if rating_type == "price" or rating_co2 is None:
+        if rating_type != "price" and rating_co2 is None:
+            debug_log("Aggregation: CO2 rating unavailable, falling back to price rating")
+        return rating_price if rating_price is not None else 5
+
+    if rating_price is None:
+        debug_log("Aggregation: price rating unavailable, falling back to CO2 rating")
+        return rating_co2
+
+    if rating_type == "max":
+        return max(rating_price, rating_co2)
+
+    if rating_type == "average":
+        w_price = config.getfloat("aggregation", "weight_price", fallback=0.6)
+        w_co2 = config.getfloat("aggregation", "weight_co2", fallback=0.4)
+        combined = (w_price * rating_price + w_co2 * rating_co2) / (w_price + w_co2)
+        return max(1, min(10, round(combined)))
+
+    debug_log(f"Aggregation: unknown rating_type '{rating_type}', using price rating")
+    return rating_price
+
 def update_state_json(new_entry, state_file_path, history_length, static_context, debug_log):
     """Update the JSON state file with history."""
     state_path = Path(state_file_path)
@@ -151,6 +185,11 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
 
         # CO2 grade (1 low - 10 high) doubles as the CO2 rating
         rating_co2 = grade if isinstance(grade, int) else None
+
+        # Combine price and CO2 ratings per the [aggregation] config
+        rating = combine_ratings(rating_price, rating_co2, config, debug_log)
+        if rating != rating_price:
+            price_notes.append(f"Combined rating {rating} (price {rating_price}, CO2 {rating_co2})")
 
         # update log_context with gathered values
         log_context.update({

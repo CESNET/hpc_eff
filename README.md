@@ -166,6 +166,33 @@ What each mode turns on under the hood:
 
 The CPU is driven by either temperature or price/CO₂, never both. GPU power regulation rides along with `temperature` mode only (NVIDIA GPUs only; safely no-ops on nodes without them).
 
+### Combined price + CO₂ rating
+
+In `co2` mode two independent ratings (1–10) are computed each cycle:
+
+- **Price rating** — the current spot price (spotovaelektrina.cz) classified against a full year of monthly averages via `classify_price_by_median`.
+- **CO₂ rating** — the current grid carbon intensity (Nowtricity) graded as a percentile within the last 24 hours of values.
+
+How they are merged into the final rating that selects the CPU max frequency is controlled by the `[aggregation]` section:
+
+```ini
+[aggregation]
+# price | average | max
+rating_type = average
+weight_price = 0.6
+weight_co2 = 0.4
+```
+
+| `rating_type` | Behaviour |
+|---------------|-----------|
+| `price` | Price rating only (legacy behaviour; also used when the section is absent) |
+| `average` | Weighted average of both ratings (price + CO₂), rounded and clamped to 1–10 |
+| `max` | The worse (higher) of the two — "throttle if *either* is expensive or dirty" |
+
+If the CO₂ API is unavailable, `average` and `max` transparently fall back to the price rating so the node keeps regulating. All three values (`rating_price`, `rating_co2`, and the combined `rating`) are written to the database and state JSON, so weights can be tuned against real history.
+
+**Why is price weighted higher than CO₂?** The two ratings are computed against very different baselines. The price rating is measured against a *year* of monthly averages — it is a stable, absolute signal where a 9 genuinely means "expensive compared to the whole year". The CO₂ grade is only a percentile within the *last 24 hours*, so it sweeps the full 1–10 range every single day: even on a uniformly clean day, the cleanest hour grades 1 and the dirtiest grades 10. Giving CO₂ an equal or higher weight would let this day-relative volatility dominate the frequency cap. The 0.6/0.4 split keeps the long-term price signal in charge while letting intraday carbon intensity nudge the cap toward cleaner hours. (In the Czech grid the two correlate anyway — both spike when fossil plants set the marginal price — so the CO₂ term mostly acts as a fine-tuning signal.)
+
 ---
 
 ## Temperature source ("bring your own reader")

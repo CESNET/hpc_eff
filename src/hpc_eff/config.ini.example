@@ -111,9 +111,26 @@ LOW_POWER=40%
 # Optional Slack webhook for power change notifications
 # SLACK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 
-# [aggregation] is reserved and NOT currently read by the code. It is kept here
-# for reference; it was intended for a future weighted price+CO2 rating.
-#[aggregation]
-#rating_type=price        # "price" (default) or "average" (weighted price + CO2)
-#weight_price=0.4
-#weight_co2=0.6
+# ============================================================================
+# RATING AGGREGATION (price + CO2)
+# ============================================================================
+
+[aggregation]
+# How the final rating (1-10) that drives the CPU max frequency is computed:
+#   price   - price rating only (legacy behaviour; used when section is absent)
+#   average - weighted average of the price and CO2 ratings
+#   max     - the worse (higher) of the two ratings ("throttle if either is bad")
+#
+# If the CO2 API is unavailable, "average" and "max" fall back to the price
+# rating so the node keeps regulating.
+rating_type=average
+
+# Weights for rating_type=average (normalized by their sum, so they need not
+# add up to 1). Price is weighted higher because the two ratings are computed
+# against different baselines: the price rating compares against a full year
+# of monthly averages and is a stable, absolute signal, while the CO2 grade is
+# a percentile within only the last 24 hours and therefore sweeps the whole
+# 1-10 range every day - even on a uniformly clean day. Weighting CO2 equal or
+# higher would let that day-relative volatility dominate the frequency cap.
+weight_price=0.6
+weight_co2=0.4
