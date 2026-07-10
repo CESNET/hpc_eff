@@ -11,7 +11,7 @@ def fetch_emissions_data(api_headers):
     """
     url = 'https://www.nowtricity.com/api/emissions-previous-24h/czech-republic/'
 
-    response = requests.get(url, headers=api_headers)
+    response = requests.get(url, headers=api_headers, timeout=10)
     response.raise_for_status()
     data = response.json()
     
@@ -28,7 +28,7 @@ def fetch_current_emission(api_headers):
     """
     url = 'https://www.nowtricity.com/api/current-emissions/czech-republic/'
 
-    response = requests.get(url, headers=api_headers)
+    response = requests.get(url, headers=api_headers, timeout=10)
     response.raise_for_status()
     data = response.json()
     
@@ -47,6 +47,9 @@ def assign_grade(current_value, historical_values):
     Returns:
         int: Grade from 1 (low) to 10 (high).
     """
+    if not historical_values:
+        raise ValueError("Cannot assign CO2 grade: empty history")
+
     sorted_values = sorted(historical_values)
     position = sum(1 for v in sorted_values if v < current_value)
     percentile = position / len(sorted_values)

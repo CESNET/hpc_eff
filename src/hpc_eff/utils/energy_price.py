@@ -92,13 +92,18 @@ def classify_price(price, history):
       - rating: A numerical rating from 1 (cheapest) to 10 (most expensive).
     """
     
+    if not history:
+        raise ValueError("Cannot classify price: empty price history")
+
     # Calculate the minimum and maximum of the historical data
     min_price = min(history)
     max_price = max(history)
-    
+
     # Calculate the numerical rating (1 to 10) based on how far the price is from the historical range
     # Normalize the current price to a scale from 0 to 1 based on the historical min and max
-    normalized_price = (price - min_price) / (max_price - min_price)
+    # (a uniform history has zero range; treat the price as mid-range)
+    price_range = max_price - min_price
+    normalized_price = (price - min_price) / price_range if price_range else 0.5
     
     # Map the normalized price to a rating between 1 and 10
     rating = round(1 + normalized_price * 9)  # Scale to [1, 10]
@@ -136,15 +141,23 @@ def classify_price_by_median(price, history):
         and rating as integer from 1 to 10.
     """
 
+    if not history:
+        raise ValueError("Cannot classify price: empty price history")
+
     median_price = np.median(history)
     max_price = max(history)
     min_price = min(history)
 
+    # A degenerate history (uniform values, or a single month) collapses one
+    # side of the range to zero width; rate against the median alone instead
+    # of dividing by zero.
     if price >= median_price:
-        normalized = (price - median_price) / (max_price - median_price)
+        spread = max_price - median_price
+        normalized = (price - median_price) / spread if spread else (0 if price == median_price else 1)
         rating = 5 + round(normalized * 5)
     else:
-        normalized = (median_price - price) / (median_price - min_price)
+        spread = median_price - min_price
+        normalized = (median_price - price) / spread if spread else 1
         rating = 5 - round(normalized * 4)
 
     rating = max(1, min(rating, 10))
