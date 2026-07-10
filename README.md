@@ -193,6 +193,17 @@ If the CO₂ API is unavailable, `average` and `max` transparently fall back to 
 
 **Why is price weighted higher than CO₂?** The two ratings are computed against very different baselines. The price rating is measured against a *year* of monthly averages — it is a stable, absolute signal where a 9 genuinely means "expensive compared to the whole year". The CO₂ grade is only a percentile within the *last 24 hours*, so it sweeps the full 1–10 range every single day: even on a uniformly clean day, the cleanest hour grades 1 and the dirtiest grades 10. Giving CO₂ an equal or higher weight would let this day-relative volatility dominate the frequency cap. The 0.6/0.4 split keeps the long-term price signal in charge while letting intraday carbon intensity nudge the cap toward cleaner hours. (In the Czech grid the two correlate anyway — both spike when fossil plants set the marginal price — so the CO₂ term mostly acts as a fine-tuning signal.)
 
+### Price data source (spotovaelektrina.cz)
+
+The price rating uses two endpoints of [spotovaelektrina.cz](https://spotovaelektrina.cz), which republishes Czech OTE spot market prices:
+
+- **Current price** — `https://spotovaelektrina.cz/api/v1/price/get-actual-price-czk`, a JSON-free endpoint returning the current hour's price as a plain integer (CZK/MWh).
+- **Historical baseline** — [`https://spotovaelektrina.cz/historicke-ceny/<year>/1`](https://spotovaelektrina.cz/historicke-ceny), scraped from HTML (there is no public API for history). Each page lists one table row per month with the monthly average as the first `⌀ … Kč` cell. The whole calendar year is present on every page regardless of the `<month>` path segment.
+
+`get_averages_year()` builds the baseline from the **current date**: it fetches the current *and* previous year's page and keeps the most recent 12 monthly averages, so the classification window is always the trailing ~year — including in January, when the current-year page alone would contain only a few weeks of data.
+
+Because the history is scraped, a site redesign could silently break parsing. The parser therefore raises a clear error if fewer than 6 monthly values could be extracted; the controller then logs it and the cycle falls back to the CO₂ rating (or the neutral rating 5 if that is also unavailable) rather than regulating against a corrupt baseline.
+
 ---
 
 ## Temperature source ("bring your own reader")

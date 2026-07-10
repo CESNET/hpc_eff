@@ -1,5 +1,6 @@
 import requests
 import re
+from datetime import date
 import numpy as np
 
 def get_current_energy_price():
@@ -8,32 +9,65 @@ def get_current_energy_price():
     Returns the price in CZK/MWh.
     """
     url = "https://spotovaelektrina.cz/api/v1/price/get-actual-price-czk"
-    response = requests.get(url)
-    try:
-        data = int(response.text)
-    except ValueError:
-        print("Cannot convert to int")
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    return int(response.text)
 
-    # Returns price
-    return data
-
-def get_averages_year():
+def parse_monthly_averages(html_content):
     """
-    Fetches electricity price for last year from webpage.
-    Returns list of prices in CZK/MWh.
+    Parse monthly average prices from a spotovaelektrina.cz historical page.
+
+    Returns:
+        dict {(year, month): price} with the FIRST ⌀ value of each row
+        (the monthly average).
     """
-    url = 'https://spotovaelektrina.cz/historicke-ceny/2025/1'
-    response = requests.get(url)
-    html_content = response.text
+    tokens = re.findall(
+        r'href="/historicke-ceny/(\d{4})/(\d{1,2})"|⌀\s+([\d\s]+)\s*Kč',
+        html_content,
+    )
+    monthly = {}
+    for current, following in zip(tokens, tokens[1:]):
+        is_month_link = bool(current[0])
+        next_is_price = bool(following[2])
+        if is_month_link and next_is_price:
+            key = (int(current[0]), int(current[1]))
+            monthly.setdefault(key, int(following[2].replace(' ', '')))
+    return monthly
 
-    monthly_averages = []
+def get_averages_year(months=12, min_months=6):
+    """
+    Fetches monthly average electricity prices for the trailing ~year from
+    spotovaelektrina.cz. The current and previous year pages are combined so
+    the window is always ~12 months regardless of the date (early in a year
+    the current page alone only has a few months).
 
-    matches = re.findall(r'⌀\s+([\d\s]+)\s*Kč', html_content)
-    for match in matches:
-        price = int(match.replace(' ', ''))
-        monthly_averages.append(price)
+    Returns:
+        list of int prices in CZK/MWh, newest month first, at most `months`
+        entries.
 
-    return(monthly_averages)
+    Raises:
+        ValueError: if fewer than `min_months` months could be parsed
+        (e.g. the page layout changed and the scraper silently broke).
+    """
+    monthly = {}
+    current_year = date.today().year
+    for year in (current_year, current_year - 1):
+        url = f'https://spotovaelektrina.cz/historicke-ceny/{year}/1'
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        monthly.update(parse_monthly_averages(response.text))
+
+    newest_first = sorted(monthly.keys(), reverse=True)[:months]
+    prices = [monthly[key] for key in newest_first]
+
+    if len(prices) < min_months:
+        raise ValueError(
+            f"Only parsed {len(prices)} monthly averages from "
+            f"spotovaelektrina.cz (expected at least {min_months}); "
+            f"the page layout may have changed"
+        )
+
+    return prices
 
 def classify_price(price, history):
     """
