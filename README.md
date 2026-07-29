@@ -1,4 +1,4 @@
-# hpc_eff
+# ThrottlePoint
 
 **Energy Optimization Governor** for HPC systems.  
 Dynamically adjusts CPU frequencies and GPU power based on power, electricity price, CO₂ intensity, and temperature. Which signals drive the decision is fully configurable, and you can plug in your own temperature/data source.
@@ -9,7 +9,7 @@ All the functionality and code logic located in `src/hpc_eff` stem from https://
 
 ## Overview
 
-`hpc_eff` is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
+ThrottlePoint is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
 It evaluates current energy/thermal conditions, prints debug logs if enabled, and adjusts CPU frequencies and GPU power accordingly.
 
 **Main steps performed:**
