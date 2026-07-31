@@ -33,8 +33,8 @@ Steps 2–7 run only when the price/CO₂ regulator is enabled; steps 9 and 11 r
 
 Clone the repository first:
 ```bash
-git clone git@github.com:CESNET/hpc_eff.git
-cd hpc_eff
+git clone git@github.com:CESNET/throttlepoint.git
+cd throttlepoint
 ```
 
 Then build and install using the packaging for your distribution.
