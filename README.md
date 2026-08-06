@@ -16,8 +16,33 @@ All the functionality and code logic located in `src/hpc_eff` stem from https://
   * Continuity of services
 * Driver: power-grid or local heating signals
   * Lowering operational costs, carbon impact
----
 
+<table>
+  <tr>
+    <td>
+      <a href="docs/images/ThrottlePoint-usecases-1.png">
+        <img src="docs/images/ThrottlePoint-usecases-1.png" alt="ThrottlePoint Use Case 1" width="200"/>
+      </a>
+    </td>
+    <td>
+      <a href="docs/images/ThrottlePoint-usecases-2.png">
+        <img src="docs/images/ThrottlePoint-usecases-2.png" alt="ThrottlePoint Use Case 2" width="200"/>
+      </a>
+    </td>
+    <td>
+      <a href="docs/images/ThrottlePoint-usecases-3.png">
+        <img src="docs/images/ThrottlePoint-usecases-3.png" alt="ThrottlePoint Use Case 3" width="200"/>
+      </a>
+    </td>
+    <td>
+      <a href="docs/images/ThrottlePoint-usecases-4.png">
+        <img src="docs/images/ThrottlePoint-usecases-4.png" alt="ThrottlePoint Use Case 4" width="200"/>
+      </a>
+    </td>
+  </tr>
+</table>
+
+---
 ## Overview
 
 ThrottlePoint is designed to be run periodically (e.g., via `cron` every few minutes) under root.  
