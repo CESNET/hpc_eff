@@ -5,6 +5,17 @@ Dynamically adjusts CPU frequencies and GPU power based on power, electricity pr
 
 All the functionality and code logic located in `src/hpc_eff` stem from https://gitlab.cesnet.cz/dexter/hpc_eff.
 
+## ThrottlePoint use cases
+* Driver: carbon intensity of electricity
+  * Primary GreenDIGITscenario
+  * Lowering carbon impact
+* Driver: electricity cost or consumption profile
+  * Lowering operational costs
+* Driver: datacenter temperature
+  * Optimize datacenter usage
+  * Continuity of services
+* Driver: power-grid or local heating signals
+  * Lowering operational costs, carbon impact
 ---
 
 ## Overview
