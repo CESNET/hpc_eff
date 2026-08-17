@@ -4,10 +4,23 @@ SCORE=3.8
 POWERREADINGCMD=ipmitool dcmi power reading
 DEBUG=yes
 
-[API]
-# Credentials for the CO2 intensity API (https://www.nowtricity.com/)
-USER_AGENT=UserAgentString
-API_KEY=XXX
+[CO2_API]
+# Which CO2 intensity API to use: nowtricity | wattnet
+TYPE=nowtricity
+
+# Nowtricity API credentials (https://www.nowtricity.com/)
+NOWTRICITY_USER_AGENT=UserAgentString
+NOWTRICITY_API_KEY=***
+NOWTRICITY_BASE_URL=https://www.nowtricity.com/api
+NOWTRICITY_ZONE=czech-republic
+
+# Wattnet API settings (used only when TYPE=wattnet)
+# Start/end timestamps are calculated automatically for the trailing 24h
+WATTNET_URL=https://api.wattnet.eu/v1/footprints
+WATTNET_API_KEY=***
+WATTNET_ZONE=CZ
+WATTNET_FOOTPRINT_TYPE=carbon
+WATTNET_SCOPE=operational
 
 [logging]
 db_path=/var/lib/hpc_eff/history.db

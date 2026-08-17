@@ -171,10 +171,8 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
 
         # Fetch CO2 values and grading (only if the price regulator needs them for logging)
         try:
-            historical_values, current_value, median_value, grade = co2_value({
-                'User-Agent': config['API']['USER_AGENT'],
-                'X-Api-Key': config['API']['API_KEY']
-            })
+            # Pass config object to support both nowtricity and wattnet APIs
+            historical_values, current_value, median_value, grade = co2_value(config)
             debug_log(f"Last 24 hours CO2 values (g CO2eq/kWh): {historical_values}")
             debug_log(f"Current CO2 value (g CO2eq/kWh): {current_value}")
             debug_log(f"Median value from 24 hours values (g CO2eq/kWh): {median_value}")

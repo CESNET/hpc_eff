@@ -1,3 +1,13 @@
+hpc-eff (0.5-1) experimental; urgency=medium
+
+  * Added configurable CO2 API backend: Nowtricity (default) or Wattnet.
+  * Introduced [CO2_API] section with TYPE selector (nowtricity|wattnet).
+  * Nowtricity settings: BASE_URL, ZONE, USER_AGENT, API_KEY (unified prefix).
+  * Wattnet settings: URL, API_KEY, ZONE, FOOTPRINT_TYPE, SCOPE.
+  * Removed hardcoded Nowtricity API URLs — configurable via config.ini.
+
+ -- CESNET <vondruska@cesnet.cz>  Mon, 17 Aug 2026 13:30:00 +0200
+
 hpc-eff (0.4-1) experimental; urgency=medium
 
   * Unified CO₂/price and temperature regulation into single codebase.
