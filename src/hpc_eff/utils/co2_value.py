@@ -126,13 +126,7 @@ def fetch_wattnet_24h(config):
     result = hourly_values[::-1][:24]
 
     if len(result) < 24:
-        # Not enough data (API may not return full 24h if data is missing)
-        # Pad with the last known value or repeat the available data
-        if result:
-            while len(result) < 24:
-                result.append(result[-1])
-        else:
-            raise ValueError("No CO2 data available from Wattnet API")
+        raise ValueError(f"Wattnet API returned only {len(result)}/24 hourly values")
 
     return result, current_hourly
 
