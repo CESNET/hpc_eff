@@ -7,7 +7,7 @@ terminal actions `apply_cpu_thermo` and `set_cpu_freq` based on config flags.
 Internal regulator flags drive the pipeline. These live in an internal
 [FEATURES] section that `main.resolve_control_mode` populates from the single
 user-facing `[MODE] control_mode` switch (the user never sets them directly):
-- ENABLE_PRICE_CPU : price/CO2 -> rating -> max-frequency cap
+- ENABLE_PRICE_CO2_CPU : price/CO2 -> rating -> max-frequency cap
 - ENABLE_TEMP_CPU  : temperature -> hysteresis-based max-frequency control
 - ENABLE_TEMP_GPU  : temperature -> power limiting for NVIDIA GPUs
 
@@ -97,7 +97,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
         debug_log: callable for debug logging
 
     Reads the internal flags `FEATURES/ENABLE_TEMP_CPU` and
-    `FEATURES/ENABLE_PRICE_CPU` (set from `[MODE] control_mode`) to decide which
+    `FEATURES/ENABLE_PRICE_CO2_CPU` (set from `[MODE] control_mode`) to decide which
     final action to call (they are mutually exclusive). Data that a disabled
     action would need is not gathered, to save work.
     """
@@ -106,7 +106,7 @@ def run_evaluation(conn, config, static_context: dict, debug_log):
     # Determine which final actions are enabled; avoid gathering data
     # that we don't need when the corresponding action is disabled.
     enable_temp_cpu = config.getboolean("FEATURES", "ENABLE_TEMP_CPU", fallback=True)
-    enable_price_cpu = config.getboolean("FEATURES", "ENABLE_PRICE_CPU", fallback=True)
+    enable_price_cpu = config.getboolean("FEATURES", "ENABLE_PRICE_CO2_CPU", fallback=True)
     enable_temp_gpu = config.getboolean("FEATURES", "ENABLE_TEMP_GPU", fallback=False)
 
     # initialize placeholders

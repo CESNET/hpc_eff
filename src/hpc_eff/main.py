@@ -16,8 +16,8 @@ from .utils.cron_control import enable_cron, disable_cron
 # CPU regulation is mutually exclusive (temperature OR price), so a mode can
 # never enable both CPU regulators at once.
 CONTROL_MODE_PRESETS = {
-    "temperature": {"ENABLE_TEMP_CPU": "yes", "ENABLE_PRICE_CPU": "no", "ENABLE_TEMP_GPU": "yes"},
-    "co2":         {"ENABLE_TEMP_CPU": "no",  "ENABLE_PRICE_CPU": "yes", "ENABLE_TEMP_GPU": "no"},
+    "temperature": {"ENABLE_TEMP_CPU": "yes", "ENABLE_PRICE_CO2_CPU": "no", "ENABLE_TEMP_GPU": "yes"},
+    "co2":         {"ENABLE_TEMP_CPU": "no",  "ENABLE_PRICE_CO2_CPU": "yes", "ENABLE_TEMP_GPU": "no"},
 }
 
 

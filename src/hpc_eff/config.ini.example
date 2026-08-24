@@ -54,11 +54,6 @@ intel_e5=3000,2800,2700,2600,2400,2300
 # Fallback for unknown model
 default=3000,2800,2700,2600,2400,2200
 
-[TEMPERATURE]
-# Hard threshold (degrees Celsius). If a reading exceeds this and the price/CO2
-# regulator is enabled, the rating is forced to 10 (lowest frequency).
-THRESHOLD=80
-
 [TEMPERATURE_SOURCE]
 # Where to read temperature from. TYPE can be: ipmi | http_api | custom
 
