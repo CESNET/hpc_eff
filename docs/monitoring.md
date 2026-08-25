@@ -13,7 +13,7 @@ to scrape). Both paths are set in `[logging]`.
 | For | analysis, tuning, reporting | dashboards, Prometheus textfile, Icinga checks |
 
 There is no log file. Cron discards stdout and stderr
-(`>/dev/null 2>&1`), so anything the run printed is gone — these two records
+(`>/dev/null 2>&1`), so anything the run printed is gone: these two records
 are your only evidence that a scheduled run happened at all.
 
 ---
@@ -31,20 +31,20 @@ sudo sqlite3 /var/lib/hpc_eff/history.db ".schema hpc_eff_log"
 | `id` | | always | autoincrement |
 | `timestamp` | UTC ISO 8601 | always | when the row was inserted |
 | `hostname` | | always | `socket.gethostname()` |
-| `freq_min` | kHz | both modes | **always `0`** — a placeholder, not a real minimum |
+| `freq_min` | kHz | both modes | **always `0`** (a placeholder, not a real minimum) |
 | `freq_max` | kHz | both modes | the cap actually applied this run |
-| `score_name`, `score_value` | | always | node's benchmark label/score, set manually in `[SYSTEM]` — see [configuration.md](configuration.md#system) |
+| `score_name`, `score_value` | | always | node's benchmark label/score, set manually in `[SYSTEM]`; see [configuration.md](configuration.md#system) |
 | `price` | CZK/MWh | `co2` | current spot price |
 | `co2_current` | gCO₂eq/kWh | `co2` | current grid carbon intensity |
 | `co2_median` | gCO₂eq/kWh | `co2` | median of the last 24 h |
-| `co2_grade` | 1–10 | `co2` | CO₂ percentile grade — **TEXT column**, holds `unknown` when the API failed |
+| `co2_grade` | 1–10 | `co2` | CO₂ percentile grade, **TEXT column**, holds `unknown` when the API failed |
 | `power_w` | W | `co2` | instantaneous node power from `POWERREADINGCMD` |
 | `cpu_freq_current` | MHz | `co2` | frequency observed *before* this run's change |
 | `rating` | 1–10 | always | the combined rating that chose `freq_max` |
 | `rating_price` | 1–10 | `co2` | price component; NULL if the price fetch failed |
 | `rating_co2` | 1–10 | `co2` | CO₂ component; NULL if the CO₂ fetch failed |
 | `temperature` | °C | `temperature` | the sensor reading |
-| `gpu_power_limit` | W | `temperature` | limit before this run |
+| `gpu_power_limit` | W | `temperature` | limit in effect this run (== `gpu_target_power`) |
 | `gpu_target_power` | W | `temperature` | limit this run aimed for |
 | `gpu_state` | | `temperature` | `HIGH` / `MID` / `LOW` / `UNKNOWN` |
 | `gpu_count` | | `temperature` | GPUs found |
@@ -55,7 +55,7 @@ by 1000 and both describe frequency, which makes them easy to plot against each
 other incorrectly.
 
 Columns belonging to the inactive mode stay NULL. A `co2`-mode node has NULL
-`temperature` and NULL `gpu_*` for its whole life — that is expected, not a
+`temperature` and NULL `gpu_*` for its whole life; that is expected, not a
 fault.
 
 ### Schema migration
@@ -66,7 +66,7 @@ schema has gained since the file was created. History is preserved in place.
 
 ### Size
 
-One row per run — roughly 52 000 rows/year at a 10-minute interval, a handful
+One row per run: roughly 52 000 rows/year at a 10-minute interval, a handful
 of megabytes. There is no automatic pruning. If it matters, rotate it yourself:
 
 ```bash
@@ -102,17 +102,25 @@ sudo sqlite3 /var/lib/hpc_eff/history.db \
 `current` is a copy of `history[0]`. `static` is refreshed every run, so it
 also serves as a liveness marker for the config the node is running with.
 
-`action_price` (and `action_temp` in thermal mode) is the human-readable
-summary of what the run decided — the fastest thing to eyeball when something
-looks wrong.
+The example above is a `co2`-mode node. A `temperature`-mode node carries
+`temperature`, `thermo_freq_limit`, and `action_temp` instead, plus the `gpu_*`
+fields on GPU nodes; the price and rating keys are absent entirely.
+
+`action_price` (and `action_temp` in `temperature` mode) is the human-readable
+summary of what the run decided: the fastest thing to eyeball when something
+looks wrong. **`action_temp` exists only here, not in the database**, so it is
+the only place a thermal failure explains itself.
 
 The file is world-readable and rewritten atomically enough for polling. A
-stale-state check just needs `current.timestamp` compared against `now`;
+stale-state check only needs `current.timestamp` compared against `now`;
 alert if it's older than a few cron intervals.
 
 ---
 
 ## Queries worth having
+
+Most of these read the `co2`-mode columns; the
+[temperature-mode ones](#temperature-mode-queries) are further down.
 
 ### Is it running, and is it healthy?
 
@@ -127,7 +135,7 @@ GROUP BY day ORDER BY day DESC LIMIT 14;
 ```
 
 144 runs/day at a 10-minute interval. `avg_rating` pinned at exactly 5 with
-both failure counts high means **the node is not regulating at all** — it is
+both failure counts high means **the node is not regulating at all**: it is
 falling back to the neutral rating every cycle.
 
 ### How much time is spent at each cap?
@@ -142,8 +150,8 @@ GROUP BY mhz ORDER BY mhz DESC;
 ```
 
 If one row holds >90 % of the time, the frequency table is too coarse or the
-rating never moves — revisit
-[deployment.md §7](deployment.md#7-tune-the-frequency-table).
+rating never moves; revisit
+[deployment.md](deployment.md#co2-mode-the-frequency-table).
 
 ### Did the weights do anything?
 
@@ -160,7 +168,7 @@ often the CO₂ term actually shifted the combined rating away from the price
 rating. If `rating` equals `rating_price` in nearly every row, the CO₂ signal
 is not earning its weight on your grid.
 
-### Daily profile — when is the node throttled?
+### Daily profile: when is the node throttled?
 
 ```sql
 SELECT strftime('%H', timestamp) AS hour_utc,
@@ -182,20 +190,69 @@ WHERE power_w IS NOT NULL
 GROUP BY day ORDER BY day DESC LIMIT 30;
 ```
 
-Estimate only, not metering-grade — `power_w` is one BMC sample per cron
+Estimate only, not metering-grade: `power_w` is one BMC sample per cron
 interval, assumed to hold for the whole interval.
+
+### Temperature-mode queries
+
+Health check, the equivalent of the first query above:
+
+```sql
+SELECT date(timestamp) AS day,
+       COUNT(*)                     AS runs,
+       SUM(temperature IS NULL)     AS read_fail,
+       ROUND(MIN(temperature), 1)   AS min_c,
+       ROUND(MAX(temperature), 1)   AS max_c,
+       COUNT(DISTINCT freq_max)     AS caps_used
+FROM hpc_eff_log
+GROUP BY day ORDER BY day DESC LIMIT 14;
+```
+
+Any `read_fail` at all means the sensor was unreadable and **no cap was
+applied that run** — there is no fallback in this mode. `caps_used` of 1 in a
+stable room is the intended steady state, not a fault; `caps_used` of 3 every
+day means your limits sit below the room's normal range.
+
+Where the bands actually sit, which is how you re-tune `MID_LIMIT`/`HIGH_LIMIT`
+against real readings rather than guesses:
+
+```sql
+SELECT freq_max/1000            AS mhz,
+       COUNT(*)                 AS runs,
+       ROUND(MIN(temperature),1) AS min_c,
+       ROUND(MAX(temperature),1) AS max_c
+FROM hpc_eff_log
+WHERE temperature IS NOT NULL
+GROUP BY mhz ORDER BY mhz DESC;
+```
+
+GPU regulation, if you have it:
+
+```sql
+SELECT gpu_state, COUNT(*) AS runs,
+       SUM(gpu_changed) AS changes,
+       SUM(gpu_success = 0) AS failures
+FROM hpc_eff_log
+WHERE gpu_count > 0
+GROUP BY gpu_state;
+```
+
+`gpu_state` stuck at `HIGH` forever usually means the `[GPU_POWER]` thresholds
+(70/80 °C by default) sit above anything the shared sensor ever reports.
+Compare them against the `temperature` column; see
+[troubleshooting.md](troubleshooting.md#gpu-power-is-not-changing).
 
 ### Fleet-wide
 
 `hostname` is on every row, so per-node databases can be `scp`'d in and
-combined with SQLite's `ATTACH` — one `INSERT ... SELECT` per node into a
+combined with SQLite's `ATTACH`: one `INSERT ... SELECT` per node into a
 shared table.
 
 ---
 
 ## Reading the database on a running node
 
-The database is opened in WAL mode, so concurrent reads are safe — you do not
+The database is opened in WAL mode, so concurrent reads are safe: you do not
 need to stop cron, and you do not need to copy the file first:
 
 ```bash
