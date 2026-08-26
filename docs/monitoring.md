@@ -40,7 +40,7 @@ sudo sqlite3 /var/lib/hpc_eff/history.db ".schema hpc_eff_log"
 | `co2_grade` | 1–10 | `co2` | CO₂ percentile grade, **TEXT column**, holds `unknown` when the API failed |
 | `power_w` | W | `co2` | instantaneous node power from `POWERREADINGCMD` |
 | `cpu_freq_current` | MHz | `co2` | frequency observed *before* this run's change |
-| `rating` | 1–10 | always | the combined rating that chose `freq_max` |
+| `rating` | 1–10 | always | `co2`: the combined rating that chose `freq_max`. `temperature`: always `5`, an unused leftover; the thermal bands choose `freq_max` instead |
 | `rating_price` | 1–10 | `co2` | price component; NULL if the price fetch failed |
 | `rating_co2` | 1–10 | `co2` | CO₂ component; NULL if the CO₂ fetch failed |
 | `temperature` | °C | `temperature` | the sensor reading |
@@ -78,6 +78,8 @@ sudo sqlite3 /var/lib/hpc_eff/history.db \
 
 ## The state file
 
+A JSON file, rewritten in full on every run:
+
 ```json
 {
   "static": {
@@ -111,9 +113,20 @@ summary of what the run decided: the fastest thing to eyeball when something
 looks wrong. **`action_temp` exists only here, not in the database**, so it is
 the only place a thermal failure explains itself.
 
-The file is world-readable and rewritten atomically enough for polling. A
-stale-state check only needs `current.timestamp` compared against `now`;
-alert if it's older than a few cron intervals.
+Each run reads the whole file, replaces `current`, prepends the new entry to
+`history` (trimmed to `history_length`), refreshes `static`, and writes the
+whole file back. If the file does not exist yet, it is created with empty
+`history`/`current`; if it exists but fails to parse, that run silently
+starts over from an empty structure rather than failing.
+
+The write is a plain truncate-and-rewrite, not atomic: a poller reading at
+the exact moment of a write can see a truncated or invalid-JSON file. A
+consumer that parses this file on a timer should tolerate an occasional
+parse failure and retry, rather than treat one as a fault.
+
+The file is world-readable (chmod 644). A stale-state check only needs
+`current.timestamp` compared against `now`; alert if it's older than a few
+cron intervals.
 
 ---
 
@@ -135,8 +148,8 @@ GROUP BY day ORDER BY day DESC LIMIT 14;
 ```
 
 144 runs/day at a 10-minute interval. `avg_rating` pinned at exactly 5 with
-both failure counts high means **the node is not regulating at all**: it is
-falling back to the neutral rating every cycle.
+both failure counts high means the node is not regulating; see
+[troubleshooting.md](troubleshooting.md#the-rating-is-always-5).
 
 ### How much time is spent at each cap?
 
@@ -209,7 +222,7 @@ GROUP BY day ORDER BY day DESC LIMIT 14;
 ```
 
 Any `read_fail` at all means the sensor was unreadable and **no cap was
-applied that run** — there is no fallback in this mode. `caps_used` of 1 in a
+applied that run**: there is no fallback in this mode. `caps_used` of 1 in a
 stable room is the intended steady state, not a fault; `caps_used` of 3 every
 day means your limits sit below the room's normal range.
 
@@ -265,3 +278,10 @@ miss the most recent transactions):
 ```bash
 sudo sqlite3 /var/lib/hpc_eff/history.db ".backup /tmp/history.db"
 ```
+
+---
+
+## Next
+
+[troubleshooting.md](troubleshooting.md): symptom-first, what to check when a
+step above does not work.

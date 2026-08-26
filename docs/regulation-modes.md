@@ -135,15 +135,18 @@ also makes this the mode to use on nodes with no outbound internet access.
 ### The pipeline
 
 ```
-                                          ┌─► CPU band  ──► scaling_max_freq
-one sensor (°C) ──► [TEMPERATURE_SOURCE] ─┤
-                                          └─► GPU band  ──► nvidia-smi -pl
+[TEMPERATURE_SOURCE] ──► CPU band  ──► scaling_max_freq
+[TEMPERATURE_SOURCE] ──► GPU band  ──► nvidia-smi -pl
 ```
 
-One reading, two independent band decisions. Cool = **highest** clock and full
-power; hot = lowest. The two regulators have separate limits in
-`[CPU_THERMO]` and `[GPU_POWER]` and do not have to agree — but they read the
-*same* number, so their limits must be on the same scale to both work.
+Two independent band decisions, each reading `[TEMPERATURE_SOURCE]` on its
+own: `apply_cpu_thermo` and `regulate_gpus` each call `read_temperature()`
+separately, once per run. For a stable source both calls return the same
+value in practice, but it is two reads, not one shared reading, so a flaky
+source could in principle answer them differently. Cool = **highest** clock
+and full power; hot = lowest. The two regulators have separate limits in
+`[CPU_THERMO]` and `[GPU_POWER]` and do not have to agree, but since both
+read the same sensor, their limits must be on the same scale to both work.
 
 ### CPU bands and hysteresis
 
@@ -209,3 +212,10 @@ logged, not fatal.
 
 Need both on one node? You can't: split the cluster instead, thermally
 exposed nodes in `temperature` mode and the rest in `co2`.
+
+---
+
+## Next
+
+[monitoring.md](monitoring.md): database schema, `state.json`, and the SQL
+worth running once it is live.

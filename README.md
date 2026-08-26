@@ -8,13 +8,10 @@ the decision is fully configurable, and you can plug in your own temperature
 source.
 
 It runs from cron as root, with no daemon and no batch-system integration. Each
-run reads the signal its mode is configured for — a 1–10 rating from
-price and carbon intensity, or a temperature band — and sets the CPU's maximum
+run reads the signal its mode is configured for (a 1–10 rating from
+price and carbon intensity, or a temperature band) and sets the CPU's maximum
 scaling frequency accordingly. Running jobs are never signalled, paused, or
 killed; they run under a lower clock ceiling while conditions are bad.
-
-All the functionality and code logic located in `src/hpc_eff` stem from
-https://gitlab.cesnet.cz/dexter/hpc_eff.
 
 ---
 
@@ -23,7 +20,7 @@ https://gitlab.cesnet.cz/dexter/hpc_eff.
 | | |
 |---|---|
 | **[docs/install.md](docs/install.md)** | **Start here.** Prerequisites, building the RPM or DEB. |
-| [docs/deployment.md](docs/deployment.md) | Configure, first run, verify, tune — one node, either mode. |
+| [docs/deployment.md](docs/deployment.md) | Configure, first run, verify, tune: one node, either mode. |
 | [docs/cluster-rollout.md](docs/cluster-rollout.md) | Many nodes, upgrades, uninstall. |
 | [docs/configuration.md](docs/configuration.md) | Every key of `/etc/hpc_eff/config.ini`. |
 | [docs/regulation-modes.md](docs/regulation-modes.md) | What each mode does with its input: the rating maths, the thermal bands. |

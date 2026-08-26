@@ -11,8 +11,10 @@ If that file does not exist, `hpc-eff` falls back to
 directory**, which is how you can run it straight from a git checkout, and
 also why a run from an unexpected directory can appear to ignore your settings.
 
-Sections are read lazily: a section that no active regulator needs is never
-parsed. Which sections matter depends on `[MODE] control_mode`:
+The whole file is parsed upfront regardless of mode, so a syntax error
+anywhere (even in a section your mode does not use) crashes the run. What
+depends on `[MODE] control_mode` is which sections' *values* the active
+regulator actually reads:
 
 | Section | `co2` mode | `temperature` mode |
 |---|:--:|:--:|
@@ -196,8 +198,10 @@ log_level=INFO
 
 ## `[TEMPERATURE_SOURCE]`: pluggable temperature reading
 
-Used only in `temperature` mode (by both the CPU thermal regulator and the GPU
-power regulator, which share one reading).
+Used only in `temperature` mode. The CPU thermal regulator and the GPU power
+regulator each call this independently, once per run; they don't share a
+single reading, though for a stable source both calls return the same value
+in practice.
 
 ```ini
 [TEMPERATURE_SOURCE]
@@ -258,12 +262,10 @@ LOW_FREQUENCY=1.50GHz
 | `HIGH_/MID_/LOW_FREQUENCY` | Target max frequency per band. Accepts `3.10GHz`, `2300MHz`, `2300000KHz`, or a bare number (MHz below 10000, else kHz). |
 | `SLACK_URL` | Optional incoming webhook, posted to only when the frequency actually changes. |
 
-The example limits (29/32 °C) ship alongside
-`IPMI_SENSOR_NAME=INLET_AIR_TEMP`, i.e. air entering the chassis, which runs
-18–27 °C in a healthy cold aisle. Nothing in the code records what they were
-calibrated against — the sensor name is the only indication. They are an
-example, not a recommendation: aim them at whatever your sensor actually
-measures.
+The example limits (29/32 °C) are calibrated for the example sensor shipped
+alongside them, not a recommendation for any other sensor; see
+[deployment.md](deployment.md#temperature-mode-the-thermal-bands) for why
+that matters and how to pick your own.
 
 If any of the five keys is missing the regulator logs a debug line and skips,
 silently, as far as cron is concerned.
@@ -301,7 +303,14 @@ temperature.
 
 The temperature comes from `[TEMPERATURE_SOURCE]`, the same reading the CPU
 thermal regulator uses. The two sections' defaults are on visibly different
-scales — `[CPU_THERMO]` at 29/32 °C, `[GPU_POWER]` at 70/80 °C — so they cannot
-both be right for one sensor. Against a chassis-inlet reading the GPU
-thresholds never trigger; against a die-temperature reading the CPU ones fire
-constantly. Set both pairs against the range your sensor actually produces.
+scales (`[CPU_THERMO]` at 29/32 °C, `[GPU_POWER]` at 70/80 °C), so they cannot
+both be right for one sensor. Depending on the range your sensor actually
+produces, one section's thresholds may never trigger while the other's fire
+constantly. Set both pairs against that range.
+
+---
+
+## Next
+
+[regulation-modes.md](regulation-modes.md): what each mode does with these
+keys, the rating maths, the thermal bands.

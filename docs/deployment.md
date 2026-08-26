@@ -12,9 +12,8 @@ A compute node caps its CPU maximum frequency according to whichever signal
 | `co2` | Price/CO₂ regulator only | Cost and carbon optimisation |
 | `temperature` | Temperature regulator + NVIDIA GPU power | Thermal management, datacenter continuity |
 
-`control_mode` is the single switch for the whole node — there are no separate
-feature flags to set. It is required; an unset or unknown value aborts the run.
-The CPU is driven by either temperature or price/CO₂, never both. GPU power
+`control_mode` is the single switch for the whole node; there are no separate
+feature flags to set. The CPU is driven by either temperature or price/CO₂, never both. GPU power
 regulation rides along with `temperature` mode only (NVIDIA GPUs only; safely
 no-ops on nodes without them).
 
@@ -32,9 +31,8 @@ Edit `/etc/hpc_eff/config.ini`. If it is missing for any reason:
 sudo install -D -m 640 /etc/hpc_eff/config.ini.example /etc/hpc_eff/config.ini
 ```
 
-`[MODE] control_mode` is required in both modes. An unset or unknown value
-aborts the run rather than doing nothing. Everything else below depends on
-which mode you picked.
+It is required; an unset or unknown value aborts the run. Everything below
+depends on which mode you picked.
 
 `[SYSTEM] POWERREADINGCMD` (`ipmitool dcmi power reading`) is logging-only in
 both modes. Leave it as is if you have no BMC; the failure is caught.
@@ -155,7 +153,7 @@ log_level=INFO
 
 #### Picking a temperature source
 
-The reading is pluggable — "bring your own reader":
+The reading is pluggable ("bring your own reader"):
 
 | `TYPE` | Keys | Notes |
 |---|---|---|
@@ -180,8 +178,7 @@ Every section is documented in [configuration.md](configuration.md).
 sudo hpc-eff
 ```
 
-> **Warning:** this is not a dry run. There is no `--dry-run` flag. The command
-> performs a full evaluation and applies the resulting frequency cap
+> **Warning:** there is no `--dry-run` flag; this applies the frequency cap
 > immediately. Do it on one node first, ideally a drained one.
 
 With `DEBUG=yes` you get the whole pipeline on stdout. In `co2` mode:
@@ -213,8 +210,8 @@ Only an actual band change logs `cpu_thermo applied target`. A steady node
 logs `Temperature 27.0°C → target 3.10GHz already set.` instead, which is the
 normal case, not a fault.
 
-If the run exits with `Config error: [MODE] control_mode must be one of: …`,
-you skipped [step 1](#1-configure).
+`Config error: [MODE] control_mode must be one of: …` means you skipped
+[step 1](#1-configure).
 
 ---
 
@@ -244,8 +241,8 @@ sudo sqlite3 /var/lib/hpc_eff/history.db \
 fell back to the price rating. That is by design, but if it is NULL every
 time, your API key or egress is wrong.
 
-In `temperature` mode the rating and price columns stay NULL — nothing
-computes them — so look at the temperature columns instead:
+In `temperature` mode the rating and price columns stay NULL (nothing
+computes them), so look at the temperature columns instead:
 
 ```bash
 sudo sqlite3 /var/lib/hpc_eff/history.db \
@@ -254,7 +251,7 @@ sudo sqlite3 /var/lib/hpc_eff/history.db \
 ```
 
 `temperature` being NULL means the source could not be read. The reason is not
-in the database — the `action_temp` note goes to `state.json` only — so check
+in the database (the `action_temp` note goes to `state.json` only), so check
 there, or rerun by hand with `DEBUG=yes`.
 
 **The state file is current:**
@@ -269,9 +266,9 @@ Field-by-field meaning: [monitoring.md](monitoring.md).
 
 ## 4. Tune the frequencies
 
-This step determines your actual energy saving, and the defaults are almost
-certainly wrong for your hardware. Both modes need real frequencies for your
-CPU; they store them in different sections.
+This step determines your actual energy saving. The shipped values are
+placeholders; both modes need the real frequencies for your specific CPU,
+stored in different sections.
 
 > **Note:** the Intel and AMD caveats below apply to **both** modes. Read
 > [the frequency table](#co2-mode-the-frequency-table) even if you are
@@ -339,7 +336,7 @@ amd_epyc=2400,2000,1500
 
 The rating picks an index across the list: rating 1 → first entry, rating 10 →
 last entry, everything else scaled evenly between. The number of entries is
-your granularity — three entries means the node only ever has three clock
+your granularity: three entries means the node only ever has three clock
 ceilings. Six to eight gives a smooth response; two gives an on/off switch.
 
 The lowest entry is your worst-case performance floor. Pick it deliberately:
@@ -367,7 +364,7 @@ LOW_FREQUENCY=1.50GHz
 | `≥ MID_LIMIT` | `MID_FREQUENCY` |
 | below `MID_LIMIT` | `HIGH_FREQUENCY`, once 2 °C of headroom is there |
 
-Use the same `turbostat` and datasheet cross-check from
+You can use the same `turbostat` and datasheet cross-check from
 [the frequency table](#co2-mode-the-frequency-table) to pick the three values;
 the Intel Turbo problem is identical here.
 
@@ -375,16 +372,9 @@ The two limits are the part that needs your own numbers, because a temperature
 threshold only means something against a particular sensor.
 
 The shipped example pairs `MID_LIMIT=29` / `HIGH_LIMIT=32` with
-`IPMI_SENSOR_NAME=INLET_AIR_TEMP` — *inlet air* being the air entering the
-front of the chassis, typically 18–27 °C in a healthy cold aisle. On that
-scale 29 and 32 read as "warm" and "too warm". Against a core- or die-
-temperature sensor, which sits at 40–85 °C under load, the same numbers would
-put the node permanently in its lowest band.
-
-Nothing in the config or the code states what these defaults were calibrated
-against; the sensor name in the example is the only clue. Treat them as an
-example, not a recommendation, and set them from what your sensor actually
-reports.
+`IPMI_SENSOR_NAME=INLET_AIR_TEMP`. Different sensors read very different
+ranges, so set these from what your sensor actually reports rather than
+copying the example as-is.
 
 ```bash
 # a quick sense of the range your sensor actually covers
@@ -392,15 +382,14 @@ ipmitool sensor reading "INLET_AIR_TEMP"
 ```
 
 > **Caution:** `[GPU_POWER]` has its own `MID_LIMIT`/`HIGH_LIMIT`, defaulting
-> to 70/80 °C — a different scale from `[CPU_THERMO]`'s 29/32. Both sections
-> read the *same* sensor, so at most one pair of defaults can suit it. If your
-> sensor reports chassis-inlet air, the GPU thresholds never trigger. Set both
-> pairs against the range your sensor actually produces.
+> to 70/80 °C, a different scale from `[CPU_THERMO]`'s 29/32. Both sections
+> read the *same* sensor, so at most one pair of defaults can suit it. Set
+> both pairs against the range your sensor actually produces.
 
 Power values take either a percentage (`70%`) or absolute Watts (`200`).
 A percentage resolves against `nvidia-smi --query-gpu=power.max_limit` read
-from the **first GPU only** — the code assumes every GPU in the node is the
-same model — and the resulting absolute value is then applied to all of them.
+from the **first GPU only** (the code assumes every GPU in the node is the
+same model), and the resulting absolute value is then applied to all of them.
 On a node with mixed GPU models, neither form adapts per card.
 
 ---
@@ -426,7 +415,7 @@ traffic without changing the decision. In `temperature` mode the interval is
 also your reaction time to a hot room, and it sets how long recovery takes:
 upshifts step one band per run, so at 10 minutes a node needs 20 minutes of
 sustained cool to get from `LOW_FREQUENCY` back to `HIGH_FREQUENCY`. Shorten
-it if that is too slow — no API is being hammered in this mode.
+it if that is too slow: no API is being hammered in this mode.
 
 10 minutes is the sensible default for both.
 
@@ -437,11 +426,6 @@ it if that is too slow — no API is being hammered in this mode.
 
 ---
 
-## See also
+## Next
 
-- [install.md](install.md): prerequisites, building the RPM or DEB
-- [cluster-rollout.md](cluster-rollout.md): many nodes, upgrades, uninstall
-- [configuration.md](configuration.md): every config key
-- [regulation-modes.md](regulation-modes.md): how each mode turns its input into a frequency
-- [monitoring.md](monitoring.md): database schema, `state.json`, queries
-- [troubleshooting.md](troubleshooting.md): when a step above fails
+[cluster-rollout.md](cluster-rollout.md): many nodes, upgrades, uninstall.

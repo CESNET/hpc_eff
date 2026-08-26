@@ -35,10 +35,8 @@ Additionally, for `control_mode = temperature`:
 | Requirement | Why | Check |
 |---|---|---|
 | A working temperature source | The only input this mode has | depends on `[TEMPERATURE_SOURCE] TYPE`, see [deployment.md](deployment.md#picking-a-temperature-source) |
-| `ipmitool` (only if `TYPE=ipmi`) | Reading the sensor — required here, unlike the optional power reading above | `ipmitool sensor reading "INLET_AIR_TEMP"` |
+| `ipmitool` (only if `TYPE=ipmi`) | Reading the sensor: required here, unlike the optional power reading above | `ipmitool sensor reading "INLET_AIR_TEMP"` |
 | `nvidia-smi` (only on GPU nodes) | Applying the GPU power limit | `nvidia-smi --query-gpu=count --format=csv,noheader` |
-
-No outbound network access is needed in `temperature` mode.
 
 ### Network egress (`co2` mode only)
 
@@ -67,9 +65,9 @@ cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies 2>/dev/nu
 `acpi-cpufreq` gives you a discrete list of frequencies; `intel_pstate` in
 active mode accepts any value in range and rounds it. Both work.
 
-> **Warning:** if `/sys/devices/system/cpu/cpu0/cpufreq/` does not exist at all
-> — frequency scaling disabled in BIOS, or a virtualised node — this tool
-> cannot do anything on that node. Stop here.
+> **Warning:** if `/sys/devices/system/cpu/cpu0/cpufreq/` does not exist at all,
+> frequency scaling disabled in BIOS, or a virtualised node, this tool
+> cannot do anything on that node.
 
 ---
 
@@ -114,12 +112,20 @@ sudo apt-get install -f               # pull in any missing runtime deps
 > installs anywhere). The DEB is `Architecture: any` and builds as `amd64`; the
 > code is still architecture-independent, but `dpkg` refuses to install an
 > `amd64` .deb on an arm64 node. Build on one host of each architecture you
-> run and distribute the resulting file to the rest — compute nodes do not
+> run and distribute the resulting file to the rest; compute nodes do not
 > need the build toolchain.
 
 CI builds both artifacts on every push
 ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml), Debian 13 and
-Rocky 9), so you can also download them from the workflow run.
+Rocky 9), so you can also download them from the workflow run: open the
+**Actions** tab on GitHub, pick the run for the commit/branch you want, and
+grab `hpc-eff-deb` or `hpc-eff-rpm` from the **Artifacts** section at the
+bottom of the run summary. Via the `gh` CLI:
+
+```bash
+gh run list --workflow=ci.yml --limit 5
+gh run download <run-id> -n hpc-eff-deb   # or hpc-eff-rpm
+```
 
 ### What the package puts on disk
 
@@ -141,6 +147,4 @@ Rocky 9), so you can also download them from the workflow run.
 
 ## Next
 
-- [deployment.md](deployment.md): configure, first run, verify, tune
-- [cluster-rollout.md](cluster-rollout.md): many nodes, upgrades, uninstall
-- [configuration.md](configuration.md): every config key
+[deployment.md](deployment.md): configure, first run, verify, tune.

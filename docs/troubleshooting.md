@@ -187,8 +187,8 @@ grep -i hpc-eff /var/log/cron /var/log/syslog 2>/dev/null | tail
 
 ## Temperature mode reads nothing
 
-`read_temperature` returns `None` on any failure — every source catches its own
-exceptions — so `apply_cpu_thermo` returns without raising and **no frequency
+`read_temperature` returns `None` on any failure, since every source catches
+its own exceptions, so `apply_cpu_thermo` returns without raising and **no frequency
 is applied**. A row is still written, with `temperature` NULL, and `state.json`
 records `Temp None C`. Nothing is logged above `logger.warning`, which cron
 discards. A wrong sensor name therefore looks exactly like a healthy quiet
@@ -223,7 +223,7 @@ sudo nvidia-smi -i 0 -pl 200        # does a manual set work?
 |---|---|
 | `control_mode` is not `temperature` | GPU regulation only runs in that mode. |
 | No temperature reading | Same root cause as above: the GPU regulator uses the *same* ambient sensor. |
-| Thresholds never reached | `[GPU_POWER]` defaults are 70/80 °C. If your `[TEMPERATURE_SOURCE]` reports chassis-inlet air (typically 18–27 °C) rather than a die temperature, they never trigger. Compare the `temperature` column against the limits and set them against the range your sensor actually produces. |
+| Thresholds never reached | `[GPU_POWER]` defaults are 70/80 °C. If your `[TEMPERATURE_SOURCE]` reports a lower range, they never trigger. Compare the `temperature` column against the limits and set them against the range your sensor actually produces. |
 | Persistence mode off | Some drivers reject `-pl` without it: `nvidia-smi -pm 1`. |
 | No GPUs | The module no-ops by design. |
 

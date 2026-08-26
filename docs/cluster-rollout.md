@@ -14,22 +14,18 @@ coordination, no shared state, and no head node. Rollout is therefore only
 
 1. **Build once per architecture.** The RPM is `noarch`; the DEB builds as
    `amd64` and needs a matching build host for other architectures.
-2. **Distribute** the `.rpm` or `.deb` to a local repo, or push the file
-   directly.
-3. **Ship one config per hardware group.** In `co2` mode `[frequency_tables]`
+2. **Ship one config per hardware group.** In `co2` mode `[frequency_tables]`
    is the only hardware-specific part; the API keys and aggregation weights
    are identical everywhere. In `temperature` mode it is `[CPU_THERMO]` and
-   `[GPU_POWER]`, and the grouping is by *sensor* as much as by CPU model —
-   nodes in different rooms or airflow positions read different temperatures
-   and need different limits even with identical CPUs.
-4. **Enable cron last**, after a manual `sudo hpc-eff` on one node of each
+   `[GPU_POWER]`, and the grouping is by *sensor*, not just by CPU model.
+3. **Enable cron last**, after a manual `sudo hpc-eff` on one node of each
    group has been verified. On Debian, remember the package already enabled it.
-5. **Stagger the interval** across large groups in `co2` mode if you are
-   worried about hammering the upstream APIs — `--cron-interval 10` everywhere
+4. **Stagger the interval** across large groups in `co2` mode if you are
+   worried about hammering the upstream APIs: `--cron-interval 10` everywhere
    means hundreds of nodes fetching the same price in the same second. There
    is no built-in jitter; edit `/etc/cron.d/hpc-eff` per group to different
    offsets (`3,13,23,33,43,53` instead of `*/10`). `temperature` mode calls no
-   external API, so this does not apply — unless your source is one shared
+   external API, so this does not apply, unless your source is one shared
    HTTP endpoint, in which case it applies just as much.
 
 `/etc/hpc_eff/config.ini` is a proper conffile in both packages
@@ -54,7 +50,7 @@ gained since the database was created. Existing history is preserved in place.
 ## Uninstalling
 
 ```bash
-sudo hpc-eff --disable       # do this first, see the warning below
+sudo hpc-eff --disable       # required on RPM; the DEB's prerm does this for you
 sudo rpm -e hpc_eff          # or: make uninstall
 sudo dpkg --purge hpc-eff    # --purge also removes the config
 ```
@@ -67,7 +63,7 @@ sudo dpkg --purge hpc-eff    # --purge also removes the config
 > # or: sudo cpufreq-set --max $(cat .../cpuinfo_max_freq)
 > ```
 >
-> The same applies to the GPU power limit in `temperature` mode — it stays
+> The same applies to the GPU power limit in `temperature` mode: it stays
 > wherever the last run left it:
 >
 > ```bash
@@ -91,12 +87,11 @@ sudo sqlite3 /var/lib/hpc_eff/history.db "
   FROM hpc_eff_log GROUP BY day ORDER BY day DESC LIMIT 7;"
 ```
 
-| Look for | Healthy | Wrong |
-|---|---|---|
-| `runs` per day | 144 at a 10-minute interval | far fewer → cron is not firing |
-| `co2_failures` | 0, or occasional | every row → API key or egress broken |
-| `AVG(rating)` | somewhere near 5 | pinned at 5 → both signals are failing |
-| `freq_max` spread | several distinct values | one value → the table has too few entries, or the rating never moves |
+`runs` should be ~144/day at a 10-minute interval; far fewer means cron is not
+firing. `freq_max` should show several distinct values across the week; one
+value means the frequency table has too few entries, or the rating never
+moves. For `co2_failures` and a rating pinned at 5, see
+[troubleshooting.md](troubleshooting.md#the-rating-is-always-5).
 
 In `temperature` mode:
 
@@ -110,25 +105,20 @@ sudo sqlite3 /var/lib/hpc_eff/history.db "
   FROM hpc_eff_log GROUP BY day ORDER BY day DESC LIMIT 7;"
 ```
 
-| Look for | Healthy | Wrong |
-|---|---|---|
-| `runs` per day | 144 at a 10-minute interval | far fewer → cron is not firing |
-| `temp_failures` | 0 | any → the sensor is unreadable and no cap was applied; check `action_temp` in `state.json` |
-| temperature range | a plausible daily swing | flat or absurd → wrong sensor name, check `ipmitool sensor list` |
-| `distinct_caps` | 1 in a stable room, 2–3 if it warms up | always 3 → your limits sit below this sensor's normal range, see [deployment.md](deployment.md#temperature-mode-the-thermal-bands) |
+As with `co2` mode, `runs` should be ~144/day. `temp_failures` should be 0; any failure means the sensor is
+unreadable and no cap was applied, check `action_temp` in `state.json`. The
+temperature range should show a plausible daily swing; flat or absurd values
+mean the wrong sensor name, check `ipmitool sensor list`. `distinct_caps`
+should be 1 in a stable room or 2-3 if it warms up; always 3 means your limits
+sit below this sensor's normal range, see
+[deployment.md](deployment.md#temperature-mode-the-thermal-bands).
 
-A node that never leaves `HIGH_FREQUENCY` is not necessarily broken: it means
-the room stayed below `MID_LIMIT`, which is the intended steady state. It
-matters only if you expected intervention and never got it.
-
-More queries — energy saved, hours spent at each cap — in
+More queries (energy saved, hours spent at each cap) are in
 [monitoring.md](monitoring.md).
 
 ---
 
-## See also
+## Next
 
-- [install.md](install.md): prerequisites and building the packages
-- [deployment.md](deployment.md): configuring and verifying a single node
-- [monitoring.md](monitoring.md): database schema, `state.json`, queries
-- [troubleshooting.md](troubleshooting.md): when a step above fails
+[configuration.md](configuration.md): every section and key of
+`/etc/hpc_eff/config.ini`.
